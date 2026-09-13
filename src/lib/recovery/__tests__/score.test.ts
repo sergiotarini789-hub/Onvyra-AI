@@ -16,12 +16,12 @@ describe("Recovery Score Engine", () => {
     expect(result.category).toMatch(/high|critical/);
   });
 
-  it("should give low/negative clamped score for explicit rejection", () => {
+  it("should give 0 for explicit rejection (terminal state)", () => {
     const result = calculateRecoveryScore({
       status: "rejected",
       lastMessage: "Не интересно, спасибо. Отказ.",
     });
-    expect(result.score).toBeLessThan(40);
+    expect(result.score).toBe(0);
   });
 
   it("should give 0 for already won", () => {
@@ -33,12 +33,12 @@ describe("Recovery Score Engine", () => {
     expect(result.score).toBe(0);
   });
 
-  it("should give low for cancelled", () => {
+  it("should give 0 for cancelled (terminal state)", () => {
     const result = calculateRecoveryScore({
       status: "cancelled",
       lastMessage: "Отмена, проект заморожен.",
     });
-    expect(result.score).toBeLessThan(30);
+    expect(result.score).toBe(0);
   });
 
   it("should handle 'I'll think about it' signal", () => {

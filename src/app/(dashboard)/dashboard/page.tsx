@@ -35,22 +35,38 @@ export default async function DashboardPage() {
     prisma.auditLog.findMany({ where: { organizationId: orgId }, orderBy: { createdAt: "desc" }, take: 10 }).catch(() => [] as any[]),
   ]);
 
+  // Use Decimal-safe calculation to avoid float artifacts
+  function calcPotential(dealValue: any, prob: any): number {
+    if (!dealValue || !prob) return 0;
+    const dv = typeof dealValue === "object" && dealValue.toNumber ? dealValue.toNumber() : Number(dealValue);
+    if (dv < 0 || prob < 0 || prob > 1) return 0;
+    const cents = Math.round(dv * 100);
+    return Math.round(cents * prob) / 100;
+  }
+
   const potentialRevenue = analyses.reduce((sum, a) => {
-    if (a.recoveryProbability && a.lead.dealValue) return sum + a.lead.dealValue * a.recoveryProbability;
-    return sum;
+    return sum + calcPotential(a.lead.dealValue, a.recoveryProbability);
   }, 0);
 
   const highConfidenceRevenue = analyses
     .filter((a) => a.confidence === "high" && a.recoveryProbability && a.recoveryProbability >= 0.6)
-    .reduce((sum, a) => sum + (a.lead.dealValue || 0) * (a.recoveryProbability || 0), 0);
+    .reduce((sum, a) => sum + calcPotential(a.lead.dealValue, a.recoveryProbability), 0);
 
-  const confirmedRevenue = recoveryEvents
+  // Fix P1-4: Use latest event per lead for confirmed revenue to avoid ghost revenue when mutating outcome
+  // Group events by leadId, take latest per lead
+  const latestEventsByLead = new Map<string, any>();
+  for (const ev of recoveryEvents.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())) {
+    latestEventsByLead.set(ev.leadId, ev);
+  }
+  const latestEvents = Array.from(latestEventsByLead.values());
+
+  const confirmedRevenue = latestEvents
     .filter((e) => e.outcome === "RECOVERED" || e.outcome === "won")
     .reduce((sum, e) => sum + (e.revenue || 0), 0);
 
-  const recoveredCount = recoveryEvents.filter((e) => e.outcome === "RECOVERED" || e.outcome === "won").length;
-  const contactedCount = recoveryEvents.filter((e) => ["CONTACTED", "REPLIED", "INTERESTED", "NEGOTIATING", "RECOVERED", "contacted", "responded", "interested", "negotiation", "won"].includes(e.outcome)).length;
-  const repliedCount = recoveryEvents.filter((e) => ["REPLIED", "INTERESTED", "NEGOTIATING", "RECOVERED", "responded", "interested", "negotiation", "won"].includes(e.outcome)).length;
+  const recoveredCount = latestEvents.filter((e) => e.outcome === "RECOVERED" || e.outcome === "won").length;
+  const contactedCount = latestEvents.filter((e) => ["CONTACTED", "REPLIED", "INTERESTED", "NEGOTIATING", "RECOVERED", "contacted", "responded", "interested", "negotiation", "won"].includes(e.outcome)).length;
+  const repliedCount = latestEvents.filter((e) => ["REPLIED", "INTERESTED", "NEGOTIATING", "RECOVERED", "responded", "interested", "negotiation", "won"].includes(e.outcome)).length;
 
   const criticalCount = analyses.filter((a) => a.recoveryScore >= 80).length;
   const highCount = analyses.filter((a) => a.recoveryScore >= 60 && a.recoveryScore < 80).length;
@@ -187,7 +203,7 @@ export default async function DashboardPage() {
                   <div className="flex items-center gap-4 text-right shrink-0">
                     <div>
                       <div className="text-sm font-bold">₽{a.lead.dealValue ? Math.round(a.lead.dealValue).toLocaleString("ru-RU") : "—"}</div>
-                      <div className="text-[11px] text-slate-500">Est. recoverable: <span className="font-bold text-slate-700">₽{a.lead.dealValue && a.recoveryProbability ? Math.round(a.lead.dealValue * a.recoveryProbability).toLocaleString() : "—"}</span></div>
+                      <div className="text-[11px] text-slate-500">Est. recoverable: <span className="font-bold text-slate-700">₽{(() => { const p = calcPotential(a.lead.dealValue, a.recoveryProbability); return p ? Math.round(p).toLocaleString() : "—"; })()}</span></div>
                       <div className="text-[11px] text-slate-500">{a.recoveryProbability ? `${Math.round(a.recoveryProbability * 100)}% prob` : "no prob"} • {a.confidence}</div>
                     </div>
                     <div className="flex flex-col items-end gap-1">

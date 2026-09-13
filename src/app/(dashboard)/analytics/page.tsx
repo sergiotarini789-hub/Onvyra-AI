@@ -18,15 +18,30 @@ export default async function AnalyticsPage() {
     prisma.campaignLead.findMany({ where: { organizationId: orgId } }),
   ]);
 
+  // P1-4 fix: Use latest event per lead to avoid ghost revenue
+  const latestByLead = new Map<string, any>();
+  for (const ev of events.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())) {
+    latestByLead.set(ev.leadId, ev);
+  }
+  const latestEvents = Array.from(latestByLead.values());
+
   const totalOpportunities = analyses.length;
-  const contacted = events.filter((e) => ["CONTACTED", "REPLIED", "INTERESTED", "NEGOTIATING", "RECOVERED", "contacted", "responded", "interested", "negotiation", "won"].includes(e.outcome)).length;
-  const responded = events.filter((e) => ["REPLIED", "INTERESTED", "NEGOTIATING", "RECOVERED", "responded", "interested", "negotiation", "won"].includes(e.outcome)).length;
-  const recovered = events.filter((e) => e.outcome === "RECOVERED" || e.outcome === "won").length;
-  const confirmedRevenue = events.filter((e) => e.outcome === "RECOVERED" || e.outcome === "won").reduce((s, e) => s + (e.revenue || 0), 0);
+  const contacted = latestEvents.filter((e) => ["CONTACTED", "REPLIED", "INTERESTED", "NEGOTIATING", "RECOVERED", "contacted", "responded", "interested", "negotiation", "won"].includes(e.outcome)).length;
+  const responded = latestEvents.filter((e) => ["REPLIED", "INTERESTED", "NEGOTIATING", "RECOVERED", "responded", "interested", "negotiation", "won"].includes(e.outcome)).length;
+  const recovered = latestEvents.filter((e) => e.outcome === "RECOVERED" || e.outcome === "won").length;
+  const confirmedRevenue = latestEvents.filter((e) => e.outcome === "RECOVERED" || e.outcome === "won").reduce((s, e) => s + (e.revenue || 0), 0);
+  
+  // P1-1 fix: Use Decimal-safe calculation
+  function calcPotential(dealValue: any, prob: any): number {
+    if (!dealValue || !prob) return 0;
+    const dv = typeof dealValue === "object" && dealValue.toNumber ? dealValue.toNumber() : Number(dealValue);
+    if (dv < 0 || prob < 0 || prob > 1) return 0;
+    const cents = Math.round(dv * 100);
+    return Math.round(cents * prob) / 100;
+  }
   const potentialRevenue = analyses.reduce((s, a) => {
     const lead = leads.find((l) => l.id === a.leadId);
-    if (lead?.dealValue && a.recoveryProbability) return s + lead.dealValue * a.recoveryProbability;
-    return s;
+    return s + calcPotential(lead?.dealValue, a.recoveryProbability);
   }, 0);
 
   const responseRate = contacted ? (responded / contacted) * 100 : 0;

@@ -178,8 +178,25 @@ export function calculateRecoveryScore(input: LeadInputForScoring): ScoringResul
     addFactor("positive", "complete_data", 5, "Complete customer data available", `${Math.round(compRatio * 100)}% complete`);
   }
 
+  // Terminal states - absolute 0, no recovery needed
+  const isTerminalWon = status.includes("won") || stage.includes("won") || stage.includes("closed won") || containsAny(combinedText, KEYWORDS_WON);
+  const isTerminalRejected = status === "rejected" || status.includes("rejected") || status.includes("отказ") || containsAny(lastMessage, ["not interested", "не интересно", "не нужно"]);
+  const isTerminalCancelled = status.includes("cancelled") || status.includes("canceled");
+  
+  if (isTerminalWon || isTerminalRejected || isTerminalCancelled) {
+    // Force 0 for terminal states, regardless of positive signals
+    // This prevents won/rejected/cancelled from appearing as recoverable opportunities
+    const terminalReason = isTerminalWon ? "Deal already won" : isTerminalRejected ? "Explicitly rejected" : "Cancelled";
+    return {
+      score: 0,
+      reasons: [`${terminalReason} — no recovery needed`],
+      category: "low" as const,
+      factors: factors, // Keep factors for transparency but score 0
+      businessReasons: [],
+    };
+  }
+
   // Clamp 0-100
-  const rawScore = score;
   const clamped = Math.max(0, Math.min(100, score));
 
   let category: ScoringResult["category"] = "low";
@@ -187,9 +204,6 @@ export function calculateRecoveryScore(input: LeadInputForScoring): ScoringResul
   else if (clamped >= 60) category = "high";
   else if (clamped >= 40) category = "medium";
   else category = "low";
-
-  // If clamped differs from raw, add factor for clamping (for transparency, not affecting score)
-  // We don't add points for clamp, just note
 
   return {
     score: clamped,

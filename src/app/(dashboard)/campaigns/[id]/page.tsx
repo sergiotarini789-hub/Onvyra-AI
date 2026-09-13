@@ -33,8 +33,10 @@ export default async function CampaignDetailPage({ params }: { params: { id: str
     totalValue: campaign.campaignLeads.reduce((s: number, cl: any) => s + (cl.lead.dealValue || 0), 0),
     estimatedRecoverable: campaign.campaignLeads.reduce((s: number, cl: any) => {
       const a = cl.lead.aiAnalyses?.[0];
-      if (a?.recoveryProbability && cl.lead.dealValue) return s + cl.lead.dealValue * a.recoveryProbability;
-      return s;
+      if (!a?.recoveryProbability || !cl.lead.dealValue) return s;
+      const dv = typeof cl.lead.dealValue === "object" && cl.lead.dealValue.toNumber ? cl.lead.dealValue.toNumber() : Number(cl.lead.dealValue);
+      const cents = Math.round(dv * 100);
+      return s + Math.round(cents * a.recoveryProbability) / 100;
     }, 0),
   };
 

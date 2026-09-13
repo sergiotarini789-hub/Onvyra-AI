@@ -25,8 +25,10 @@ export default async function OnboardingPage() {
   });
 
   const potential = analyses.reduce((s, a) => {
-    if (a.recoveryProbability && a.lead.dealValue) return s + a.lead.dealValue * a.recoveryProbability;
-    return s;
+    if (!a.recoveryProbability || !a.lead.dealValue) return s;
+    const dv = typeof a.lead.dealValue === "object" && (a.lead.dealValue as any).toNumber ? (a.lead.dealValue as any).toNumber() : Number(a.lead.dealValue);
+    const cents = Math.round(dv * 100);
+    return s + Math.round(cents * a.recoveryProbability) / 100;
   }, 0);
 
   const critical = analyses.filter((a) => a.recoveryScore >= 80).length;

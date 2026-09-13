@@ -65,6 +65,11 @@ export async function POST(request: NextRequest) {
   try {
     const session = await requireAuth();
     
+    // P1-6: Enforce OWNER role for billing changes server-side
+    if (session.role !== "OWNER") {
+      return NextResponse.json({ error: "Forbidden: Only organization owner can manage billing" }, { status: 403 });
+    }
+    
     const ip = getClientIp(request);
     const rl = rateLimit(`billing:${session.orgId}`, "api_default");
     if (!rl.allowed) {

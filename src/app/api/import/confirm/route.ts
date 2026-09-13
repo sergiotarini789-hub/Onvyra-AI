@@ -32,7 +32,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Rate limiting
   const ip = getClientIp(req);
   const rl = rateLimit(`import_confirm:${session.orgId}`, "import_confirm");
   if (!rl.allowed) {
@@ -40,7 +39,6 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Billing check
     const org = await prisma.organization.findUnique({ where: { id: session.orgId } }).catch(() => null);
     const plan = org ? getPlanForOrganization(org) : "FREE";
     const usage = await getOrganizationUsage(prisma, session.orgId);
@@ -61,7 +59,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: rowCountCheck.error }, { status: 400, headers: getRateLimitHeaders(rl) });
     }
 
-    // Check leads limit
     const leadsCheck = checkSpecificLimit(plan, usage, "leads");
     if (!leadsCheck.allowed) {
       return NextResponse.json({ error: leadsCheck.reason, limit: true }, { status: 403, headers: getRateLimitHeaders(rl) });
@@ -85,7 +82,6 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Sanitize rows for security
     const sanitizedRows: any[] = [];
     let sanitizationWarnings = 0;
     for (const row of rows) {
@@ -95,7 +91,6 @@ export async function POST(req: NextRequest) {
     }
 
     const normalized = normalizeRows(sanitizedRows, mapping);
-
     const { unique, duplicates: batchDups } = deduplicateBatch(normalized);
 
     const existingLeads = await prisma.lead.findMany({
@@ -119,15 +114,16 @@ export async function POST(req: NextRequest) {
     let totalPotential = 0;
     const errors: string[] = [];
 
-    // Transaction-like processing with error handling
-    for (const leadData of toImport) {
+    const CONCURRENCY_LIMIT = 5;
+    const isMockMode = !process.env.OPENAI_API_KEY;
+
+    const processLead = async (leadData: any) => {
       try {
-        // Validate monetary amount
         if (leadData.dealValue !== null && leadData.dealValue !== undefined) {
           const monetaryCheck = validateMonetaryAmount(leadData.dealValue, "dealValue");
           if (!monetaryCheck.valid) {
             errors.push(`Invalid dealValue for ${leadData.name || "unknown"}: ${monetaryCheck.error}`);
-            continue;
+            return null;
           }
           leadData.dealValue = monetaryCheck.value as any;
         }
@@ -250,20 +246,37 @@ export async function POST(req: NextRequest) {
 
           analyzedCount++;
           
-          // Increment usage
-          await incrementUsage(prisma, session.organizationId, "aiAnalysis", 1);
-          if (aiAnalysis.tokensUsed) {
-            await incrementUsage(prisma, session.organizationId, "tokens", aiAnalysis.tokensUsed);
+          try {
+            await incrementUsage(prisma, session.organizationId, "aiAnalysis", 1);
+            if (aiAnalysis.tokensUsed) {
+              await incrementUsage(prisma, session.organizationId, "tokens", aiAnalysis.tokensUsed);
+            }
+          } catch (e) {
+            logger.warn("Usage increment failed", { orgId: session.orgId });
           }
         } catch (e: any) {
-          logger.error("Analysis failed for lead", { orgId: session.orgId, leadId: lead.id, error: e.message });
+          logger.error("Analysis failed for lead", { orgId: session.orgId, error: e.message });
           errors.push(`Analysis failed for ${lead.name || lead.id}: ${e.message}`);
         }
 
         importedCount++;
+        return lead;
       } catch (e: any) {
         logger.error("Failed to import lead", { orgId: session.orgId, error: e.message });
         errors.push(`Failed to import row: ${e.message}`);
+        return null;
+      }
+    }
+
+    if (isMockMode) {
+      for (const leadData of toImport) {
+        await processLead(leadData);
+      }
+    } else {
+      // Real AI - concurrency limited
+      for (let i = 0; i < toImport.length; i += CONCURRENCY_LIMIT) {
+        const chunk = toImport.slice(i, i + CONCURRENCY_LIMIT);
+        await Promise.all(chunk.map(ld => processLead(ld)));
       }
     }
 

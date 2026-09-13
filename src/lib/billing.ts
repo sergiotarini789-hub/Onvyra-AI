@@ -188,6 +188,55 @@ export async function incrementUsage(prisma: any, orgId: string, type: "aiAnalys
   const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   
   try {
+    // P1-7: Use atomic upsert to avoid race condition check->increment bypass
+    // Try update with increment first, fallback to create
+    if (prisma.usage.upsert) {
+      const updateData: any = {};
+      const createData: any = {
+        organizationId: orgId,
+        period,
+        aiAnalyses: 0,
+        aiMessages: 0,
+        imports: 0,
+        leads: 0,
+        campaigns: 0,
+        tokensUsed: 0,
+      };
+      switch (type) {
+        case "aiAnalysis":
+          updateData.aiAnalyses = { increment: amount };
+          createData.aiAnalyses = amount;
+          break;
+        case "aiMessage":
+          updateData.aiMessages = { increment: amount };
+          createData.aiMessages = amount;
+          break;
+        case "import":
+          updateData.imports = { increment: amount };
+          createData.imports = amount;
+          break;
+        case "lead":
+          updateData.leads = { increment: amount };
+          createData.leads = amount;
+          break;
+        case "campaign":
+          updateData.campaigns = { increment: amount };
+          createData.campaigns = amount;
+          break;
+        case "tokens":
+          updateData.tokensUsed = { increment: amount };
+          createData.tokensUsed = amount;
+          break;
+      }
+      await prisma.usage.upsert({
+        where: { organizationId_period: { organizationId: orgId, period } },
+        update: updateData,
+        create: createData,
+      });
+      return;
+    }
+
+    // Fallback path for environments without upsert support (e.g., SQLite fallback)
     const existing = await prisma.usage.findUnique({
       where: { organizationId_period: { organizationId: orgId, period } },
     });
@@ -218,7 +267,6 @@ export async function incrementUsage(prisma: any, orgId: string, type: "aiAnalys
     }
   } catch (e) {
     console.error("[billing] Failed to increment usage", e);
-    // Don't throw - usage tracking failure shouldn't block business logic
   }
 }
 

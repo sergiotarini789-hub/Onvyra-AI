@@ -228,10 +228,24 @@ export default async function InboxPage({ searchParams }: { searchParams: Record
   );
 }
 
+function toNum(v: any): number | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "object" && v.toNumber) return v.toNumber();
+  const n = Number(v);
+  return isNaN(n) ? null : n;
+}
+function calcPotential(dealValue: any, prob: any): number | null {
+  const dv = toNum(dealValue);
+  if (dv === null || prob === null || prob === undefined) return null;
+  if (dv < 0 || prob < 0 || prob > 1) return null;
+  const cents = Math.round(dv * 100);
+  return Math.round(cents * prob) / 100;
+}
+
 function InboxCard({ analysis, contacted, recovered }: { analysis: any; contacted: boolean; recovered: boolean }) {
   const lead = analysis.lead;
   const factors = analysis.factors || [];
-  const potentialRevenue = lead.dealValue && analysis.recoveryProbability ? Math.round(lead.dealValue * analysis.recoveryProbability) : null;
+  const potentialRevenue = calcPotential(lead.dealValue, analysis.recoveryProbability);
 
   return (
     <Card className={`hover:shadow-md transition ${recovered ? "border-emerald-200 bg-emerald-50/30" : contacted ? "border-blue-200 bg-blue-50/20" : ""}`}>
@@ -248,8 +262,8 @@ function InboxCard({ analysis, contacted, recovered }: { analysis: any; contacte
             </div>
 
             <div className="mt-2 flex flex-wrap gap-4 text-xs">
-              <span><span className="text-slate-500">Deal:</span> <span className="font-medium">₽{lead.dealValue ? Math.round(lead.dealValue).toLocaleString("ru-RU") : "—"}</span></span>
-              <span><span className="text-slate-500">Estimated recoverable:</span> <span className="font-bold">{potentialRevenue ? `₽${potentialRevenue.toLocaleString("ru-RU")}` : "—"}</span> <span className="text-[10px] text-slate-400">Est. not guaranteed</span></span>
+              <span><span className="text-slate-500">Deal:</span> <span className="font-medium">₽{toNum(lead.dealValue) ? Math.round(toNum(lead.dealValue)!).toLocaleString("ru-RU") : "—"}</span></span>
+              <span><span className="text-slate-500">Estimated recoverable:</span> <span className="font-bold">{potentialRevenue ? `₽${Math.round(potentialRevenue).toLocaleString("ru-RU")}` : "—"}</span> <span className="text-[10px] text-slate-400">Est. not guaranteed</span></span>
               <span><span className="text-slate-500">Prob:</span> {analysis.recoveryProbability ? `${Math.round(analysis.recoveryProbability * 100)}%` : "—"} • {analysis.confidence}</span>
               <span><span className="text-slate-500">Last contact:</span> {lead.lastContactAt ? new Date(lead.lastContactAt).toLocaleDateString("ru-RU") : "—"}</span>
             </div>

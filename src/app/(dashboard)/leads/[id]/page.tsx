@@ -8,6 +8,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import LeadDetailActions from "./actions";
 import { logAudit } from "@/lib/audit";
 
+function toNum(v: any): number | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "object" && v.toNumber) return v.toNumber();
+  const n = Number(v);
+  return isNaN(n) ? null : n;
+}
+function calcPotential(dealValue: any, prob: any): number | null {
+  const dv = toNum(dealValue);
+  if (dv === null || prob === null || prob === undefined) return null;
+  if (dv < 0 || prob < 0 || prob > 1) return null;
+  const cents = Math.round(dv * 100);
+  return Math.round(cents * prob) / 100;
+}
+
 export default async function LeadDetailPage({ params }: { params: { id: string } }) {
   const session = await getSession();
   if (!session) redirect("/login");
@@ -40,7 +54,6 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
   const positiveFactors = factors.filter((f: any) => f.type === "positive" || !f.type);
   const negativeFactors = factors.filter((f: any) => f.type === "negative");
 
-  // Build activity timeline from real persisted data
   const timeline: Array<{ date: Date; actor: string; event: string; metadata?: string; type: string }> = [];
 
   timeline.push({
@@ -82,6 +95,17 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
 
   timeline.sort((a, b) => b.date.getTime() - a.date.getTime());
 
+  const dealValueNum = toNum(lead.dealValue);
+  const potential = analysis ? calcPotential(lead.dealValue, analysis.recoveryProbability) : null;
+
+  // P1-4: Use latest per lead for confirmed revenue
+  const latestByLead = new Map<string, any>();
+  for (const ev of lead.recoveryEvents.sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())) {
+    latestByLead.set(ev.leadId, ev);
+  }
+  const latestEvents = Array.from(latestByLead.values());
+  const confirmedTotal = latestEvents.filter((e: any) => e.outcome === "RECOVERED" || e.outcome === "won").reduce((s: number, e: any) => s + (e.revenue || 0), 0);
+
   return (
     <div className="mx-auto max-w-7xl p-6 space-y-6">
       <div className="flex items-center gap-2 text-sm text-slate-500">
@@ -94,9 +118,7 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Customer & Deal */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
@@ -123,7 +145,7 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div><div className="text-xs text-slate-500">Product</div><div className="font-medium">{lead.product || "—"}</div></div>
                   <div><div className="text-xs text-slate-500">Manager</div><div className="font-medium">{lead.manager || "—"}</div></div>
-                  <div><div className="text-xs text-slate-500">Deal Value</div><div className="font-bold text-base">₽{lead.dealValue ? Math.round(lead.dealValue).toLocaleString("ru-RU") : "—"}</div></div>
+                  <div><div className="text-xs text-slate-500">Deal Value</div><div className="font-bold text-base">₽{dealValueNum ? Math.round(dealValueNum).toLocaleString("ru-RU") : "—"}</div></div>
                   <div><div className="text-xs text-slate-500">Deal Stage</div><div className="font-medium">{lead.dealStage || "—"}</div></div>
                   <div><div className="text-xs text-slate-500">Source</div><div className="font-medium">{lead.source || "—"}</div></div>
                   <div><div className="text-xs text-slate-500">Deal Age</div><div className="font-medium">{dealAge !== null ? `${dealAge} days` : "—"}</div></div>
@@ -157,13 +179,13 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
                   </div>
                 </div>
 
-                {lead.dealValue && analysis.recoveryProbability && (
+                {potential !== null && (
                   <div className="rounded-xl bg-slate-900 text-white p-5">
                     <div className="flex justify-between items-start">
                       <div>
                         <div className="text-[11px] text-slate-400 uppercase tracking-wider font-bold">Estimated Recoverable Revenue</div>
-                        <div className="text-3xl font-bold mt-2">₽{Math.round(lead.dealValue * analysis.recoveryProbability).toLocaleString("ru-RU")}</div>
-                        <div className="text-xs text-slate-400 mt-2">₽{Math.round(lead.dealValue).toLocaleString()} × {Math.round(analysis.recoveryProbability * 100)}% • Estimated, not guaranteed</div>
+                        <div className="text-3xl font-bold mt-2">₽{Math.round(potential).toLocaleString("ru-RU")}</div>
+                        <div className="text-xs text-slate-400 mt-2">₽{dealValueNum ? Math.round(dealValueNum).toLocaleString() : "—"} × {Math.round((analysis.recoveryProbability || 0) * 100)}% • Estimated, not guaranteed</div>
                       </div>
                       <div className="text-right">
                         <div className="text-[11px] text-slate-400 uppercase">Potential</div>
@@ -247,7 +269,7 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
                   <div className="mt-3 pt-3 border-t border-white/10 text-[11px] text-slate-400">AI uses deterministic Recovery Engine as context, does not override financial calculations. Financial calculations remain authoritative.</div>
                 </div>
                 <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
-                  <span className="font-bold">AI-generated • Human approval required</span> — No automatic sending in Sprint 3 unless real messaging provider verified. Do not pretend Send works if no provider.
+                  <span className="font-bold">AI-generated • Human approval required</span> — No automatic sending in Sprint 3 unless real messaging provider verified.
                 </div>
                 <LeadDetailActions leadId={lead.id} message={analysis.generatedMessage} />
               </CardContent>
@@ -258,18 +280,17 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
             <Card>
               <CardContent className="p-12 text-center">
                 <div className="text-sm font-bold">No AI analysis yet</div>
-                <div className="text-xs text-slate-500 mt-1">Run analysis from import or wait for processing. Loading state: Analyzing data...</div>
+                <div className="text-xs text-slate-500 mt-1">Run analysis from import or wait for processing.</div>
                 <div className="mt-4 h-2 w-full bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-slate-900 animate-pulse w-3/4"></div></div>
               </CardContent>
             </Card>
           )}
 
-          {/* Activity Timeline */}
           <Card>
             <CardHeader><CardTitle className="text-sm font-bold uppercase tracking-wider">Activity Timeline — Real Events Only</CardTitle></CardHeader>
             <CardContent>
               {timeline.length === 0 ? (
-                <div className="text-xs text-slate-500 py-8 text-center">No activity yet — this timeline shows real persisted events only, no invented events</div>
+                <div className="text-xs text-slate-500 py-8 text-center">No activity yet</div>
               ) : (
                 <div className="space-y-3">
                   {timeline.map((item, idx) => (
@@ -294,10 +315,9 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
           </Card>
         </div>
 
-        {/* Sidebar */}
         <div className="space-y-6">
           <Card className="border-slate-900">
-            <CardHeader><CardTitle className="text-sm">Outcome Workflow — Make Recording Simple</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm">Outcome Workflow</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <form action={`/api/leads/${lead.id}/outcome`} method="post" className="space-y-3">
                 <div>
@@ -317,7 +337,7 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
                 <div>
                   <label className="text-[11px] font-bold uppercase text-slate-500">Recovered Amount (required if Recovered)</label>
                   <input name="revenue" type="number" step="0.01" placeholder="e.g. 150000" className="mt-1 w-full rounded-lg border border-slate-200 p-2.5 text-sm" />
-                  <div className="text-[10px] text-slate-500 mt-1">Do not default recovered amount to deal value without explicit user confirmation. Enter actual recovered amount.</div>
+                  <div className="text-[10px] text-slate-500 mt-1">Do not default recovered amount to deal value without explicit user confirmation.</div>
                 </div>
                 <div>
                   <label className="text-[11px] font-bold uppercase text-slate-500">Recovery Date</label>
@@ -337,10 +357,7 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
                   <div>• Recovery rate</div>
                   <div>• Campaign statistics</div>
                   <div>• Dashboard</div>
-                  <div>• Opportunity state</div>
-                  <div>• Activity timeline</div>
                 </div>
-                <div className="mt-2 font-bold">All changes persisted.</div>
               </div>
             </CardContent>
           </Card>
@@ -348,11 +365,11 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
           <Card>
             <CardHeader><CardTitle className="text-sm">Revenue — Estimated vs Confirmed</CardTitle></CardHeader>
             <CardContent className="text-xs space-y-3">
-              <div className="flex justify-between"><span className="text-slate-500">Deal Value</span><span className="font-medium">₽{lead.dealValue ? Math.round(lead.dealValue).toLocaleString() : "—"}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Deal Value</span><span className="font-medium">₽{dealValueNum ? Math.round(dealValueNum).toLocaleString() : "—"}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Est. Probability</span><span className="font-medium">{analysis?.recoveryProbability ? `${Math.round(analysis.recoveryProbability * 100)}%` : "—"}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Est. Recoverable</span><span className="font-bold">₽{lead.dealValue && analysis?.recoveryProbability ? Math.round(lead.dealValue * analysis.recoveryProbability).toLocaleString() : "—"}</span></div>
-              <div className="border-t pt-2 flex justify-between"><span className="text-slate-500">Confirmed Recovered</span><span className="font-bold text-emerald-700">₽{lead.recoveryEvents.filter((e: any) => e.outcome === "RECOVERED" || e.outcome === "won").reduce((s: number, e: any) => s + (e.revenue || 0), 0).toLocaleString()}</span></div>
-              <div className="text-[10px] text-slate-500">Deal value × probability = estimated. Confirmed = explicit recorded recovered amount. Never potential = confirmed. Never deal value = recovered automatically.</div>
+              <div className="flex justify-between"><span className="text-slate-500">Est. Recoverable</span><span className="font-bold">₽{potential ? Math.round(potential).toLocaleString() : "—"}</span></div>
+              <div className="border-t pt-2 flex justify-between"><span className="text-slate-500">Confirmed Recovered</span><span className="font-bold text-emerald-700">₽{confirmedTotal.toLocaleString()}</span></div>
+              <div className="text-[10px] text-slate-500">Deal value × probability = estimated. Confirmed = explicit recorded recovered amount.</div>
             </CardContent>
           </Card>
 
@@ -360,7 +377,7 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
             <CardHeader><CardTitle className="text-sm">Campaigns</CardTitle></CardHeader>
             <CardContent>
               {lead.campaignLeads.length === 0 ? (
-                <div className="text-xs text-slate-500">Not in any campaign — create from Recovery Inbox. Example: September Dormant Customers — Inactive &gt;14 days, HIGH/CRITICAL, &gt;₽10k</div>
+                <div className="text-xs text-slate-500">Not in any campaign</div>
               ) : (
                 <div className="space-y-2">
                   {lead.campaignLeads.map((cl: any) => (
@@ -380,7 +397,7 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
           <Card>
             <CardHeader><CardTitle className="text-sm">Raw Data — Untrusted</CardTitle></CardHeader>
             <CardContent>
-              <div className="text-[11px] text-slate-500 mb-2">Customer-provided text is UNTRUSTED DATA, treated as DATA not instructions</div>
+              <div className="text-[11px] text-slate-500 mb-2">Customer-provided text is UNTRUSTED DATA</div>
               <pre className="text-[11px] bg-slate-50 border rounded-lg p-3 overflow-auto max-h-64">{JSON.stringify(lead.rawData ? JSON.parse(lead.rawData) : {}, null, 2)}</pre>
             </CardContent>
           </Card>
