@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -110,6 +110,35 @@ enum AuditEventType {
   RECOVERY_INBOX_VIEWED
 }
 
+enum IntegrationProvider {
+  HUBSPOT
+  MOCK
+}
+
+enum IntegrationStatus {
+  NOT_CONNECTED
+  CONNECTED
+  ERROR
+  DISCONNECTED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIALING
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+  INCOMPLETE_EXPIRED
+  UNPAID
+  FREE
+}
+
+enum PlanType {
+  FREE
+  PRO
+  BUSINESS
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -121,12 +150,17 @@ model User {
   auditLogs    AuditLog[]
   campaignsCreated Campaign[] @relation("CampaignCreator")
   recoveryEvents RecoveryEvent[]
+
+  @@index([email])
 }
 
 model Organization {
   id          String   @id @default(cuid())
   name        String
   slug        String   @unique
+  billingPlan PlanType @default(FREE)
+  stripeCustomerId String? @unique
+  stripeSubscriptionId String? @unique
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   members     OrganizationMember[]
@@ -140,8 +174,12 @@ model Organization {
   campaignLeads CampaignLead[]
   recoveryOpportunities RecoveryOpportunity[]
   auditLogs   AuditLog[]
+  integrations Integration[]
+  subscriptions Subscription[]
+  usages      Usage[]
 
   @@index([slug])
+  @@index([stripeCustomerId])
 }
 
 model OrganizationMember {
@@ -161,13 +199,15 @@ model OrganizationMember {
 model Lead {
   id              String   @id @default(cuid())
   organizationId  String
+  externalId      String?  // For CRM idempotency: provider:externalId
+  provider        String?  // e.g., hubspot, mock, csv
   name            String?
   phone           String?
   email           String?
   company         String?
   manager         String?
   product         String?
-  dealValue       Float? 
+  dealValue       Decimal? @db.Decimal(15,2)
   dealStage       String?
   status          String?  @default("new")
   lastContactAt   DateTime?
@@ -186,13 +226,19 @@ model Lead {
   recoveryEvents  RecoveryEvent[]
   recoveryOpportunities RecoveryOpportunity[]
 
+  @@unique([organizationId, externalId])
   @@index([organizationId])
   @@index([organizationId, status])
   @@index([organizationId, isDemo])
+  @@index([organizationId, provider])
+  @@index([organizationId, externalId])
   @@index([email])
   @@index([phone])
   @@index([dealValue])
   @@index([lastContactAt])
+  @@index([createdAt])
+  @@index([organizationId, createdAt])
+  @@index([organizationId, lastContactAt])
 }
 
 model Conversation {
@@ -208,26 +254,30 @@ model Conversation {
 
   @@index([organizationId])
   @@index([leadId])
+  @@index([organizationId, leadId])
 }
 
 model Message {
   id             String   @id @default(cuid())
   conversationId String
-  role           String   // user, customer, assistant, system
+  role           String
   content        String
   createdAt      DateTime @default(now())
 
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
+  @@index([createdAt])
 }
 
 model Deal {
   id             String   @id @default(cuid())
   organizationId String
   leadId         String?
+  externalId     String?
+  provider       String?
   title          String?
-  value          Float?
+  value          Decimal? @db.Decimal(15,2)
   stage          String?
   status         String?
   createdAt      DateTime @default(now())
@@ -236,8 +286,12 @@ model Deal {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   lead           Lead? @relation(fields: [leadId], references: [id], onDelete: SetNull)
 
+  @@unique([organizationId, externalId])
   @@index([organizationId])
   @@index([leadId])
+  @@index([organizationId, externalId])
+  @@index([value])
+  @@index([stage])
 }
 
 model AIAnalysis {
@@ -255,8 +309,9 @@ model AIAnalysis {
   recommendedMessageGoal String?
   generatedMessage       String?
   modelVersion           String   @default("v1")
-  factors                String?  // JSON array of explainable factors
-  missingInformation     String?  // JSON array
+  factors                String?
+  missingInformation     String?
+  tokensUsed             Int?
   createdAt              DateTime @default(now())
 
   organization           Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -266,6 +321,9 @@ model AIAnalysis {
   @@index([leadId])
   @@index([recoveryScore])
   @@index([confidence])
+  @@index([organizationId, recoveryScore])
+  @@index([organizationId, createdAt])
+  @@index([createdAt])
 }
 
 model RecoveryOpportunity {
@@ -274,12 +332,12 @@ model RecoveryOpportunity {
   leadId                 String
   dealId                 String?
   score                  Int
-  category               String   // CRITICAL, HIGH, MEDIUM, LOW
+  category               String
   probability            Float?
   confidence             String
-  potentialRevenue       Float?
-  status                 String   @default("open") // open, contacted, replied, recovered, lost, not_recoverable
-  factors                String?  // JSON
+  potentialRevenue       Decimal? @db.Decimal(15,2)
+  status                 String   @default("open")
+  factors                String?
   reasoningSummary       String?
   recommendedAction      String?
   lastContactAt          DateTime?
@@ -295,6 +353,10 @@ model RecoveryOpportunity {
   @@index([score])
   @@index([status])
   @@index([category])
+  @@index([organizationId, status])
+  @@index([organizationId, category])
+  @@index([organizationId, score])
+  @@index([potentialRevenue])
 }
 
 model Campaign {
@@ -302,8 +364,8 @@ model Campaign {
   organizationId String
   name           String
   description    String?
-  status         String   @default("draft") // DRAFT, ACTIVE, PAUSED, COMPLETED
-  targetCriteria String?  // JSON
+  status         String   @default("draft")
+  targetCriteria String?
   createdById    String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -314,6 +376,8 @@ model Campaign {
 
   @@index([organizationId])
   @@index([status])
+  @@index([organizationId, status])
+  @@index([createdAt])
 }
 
 model CampaignLead {
@@ -324,11 +388,11 @@ model CampaignLead {
   status         String   @default("selected")
   messageGenerated String?
   messageEdited  String?
-  messageStatus  String?  @default("pending") // pending, ready, sent, manual_required
+  messageStatus  String?  @default("pending")
   contactedAt    DateTime?
   response       String?
   outcome        String?
-  revenue        Float?
+  revenue        Decimal? @db.Decimal(15,2)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -341,6 +405,9 @@ model CampaignLead {
   @@index([campaignId])
   @@index([leadId])
   @@index([status])
+  @@index([organizationId, campaignId])
+  @@index([organizationId, status])
+  @@index([revenue])
 }
 
 model RecoveryEvent {
@@ -352,7 +419,7 @@ model RecoveryEvent {
   userId         String?
   type           String?
   outcome        String
-  revenue        Float?
+  revenue        Decimal? @db.Decimal(15,2)
   recoveredAt    DateTime?
   source         String?
   note           String?
@@ -367,6 +434,10 @@ model RecoveryEvent {
   @@index([outcome])
   @@index([campaignId])
   @@index([recoveredAt])
+  @@index([organizationId, outcome])
+  @@index([organizationId, recoveredAt])
+  @@index([organizationId, createdAt])
+  @@index([createdAt])
 }
 
 model ImportJob {
@@ -381,15 +452,17 @@ model ImportJob {
   duplicateCount Int      @default(0)
   skippedCount   Int      @default(0)
   errorCount     Int      @default(0)
-  errors         String?  // JSON
-  mapping        String?  // JSON
-  summary        String?  // JSON with business value
+  errors         String?
+  mapping        String?
+  summary        String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model AuditLog {
@@ -399,7 +472,7 @@ model AuditLog {
   event          String
   entityType     String?
   entityId       String?
-  metadata       String?  // JSON
+  metadata       String?
   createdAt      DateTime @default(now())
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -410,4 +483,73 @@ model AuditLog {
   @@index([event])
   @@index([entityType])
   @@index([createdAt])
+  @@index([organizationId, event])
+  @@index([organizationId, createdAt])
+}
+
+model Integration {
+  id             String   @id @default(cuid())
+  organizationId String
+  provider       IntegrationProvider
+  status         IntegrationStatus @default(NOT_CONNECTED)
+  accessToken    String?  // Encrypted in production, plain for MVP structure
+  refreshToken   String?
+  externalAccountId String?
+  lastSyncAt     DateTime?
+  lastSyncStatus String?
+  lastSyncError  String?
+  metadata       String?  // JSON
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, provider])
+  @@index([organizationId])
+  @@index([provider])
+  @@index([status])
+}
+
+model Subscription {
+  id             String   @id @default(cuid())
+  organizationId String
+  plan           PlanType @default(FREE)
+  status         SubscriptionStatus @default(FREE)
+  stripeCustomerId String?
+  stripeSubscriptionId String? @unique
+  stripePriceId  String?
+  currentPeriodStart DateTime?
+  currentPeriodEnd DateTime?
+  cancelAtPeriodEnd Boolean @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([plan])
+  @@index([stripeCustomerId])
+  @@index([stripeSubscriptionId])
+}
+
+model Usage {
+  id             String   @id @default(cuid())
+  organizationId String
+  period         String   // YYYY-MM
+  aiAnalyses     Int      @default(0)
+  aiMessages     Int      @default(0)
+  imports        Int      @default(0)
+  leads          Int      @default(0)
+  campaigns      Int      @default(0)
+  tokensUsed     Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, period])
+  @@index([organizationId])
+  @@index([period])
+  @@index([organizationId, period])
 }

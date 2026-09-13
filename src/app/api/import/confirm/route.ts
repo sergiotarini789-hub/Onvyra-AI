@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/auth";
+import { prisma, calculatePotentialRevenue, validateMonetaryAmount } from "@/lib/prisma";
 import { normalizeRows } from "@/lib/import/normalization";
 import { deduplicateBatch, isDuplicateLead } from "@/lib/import/duplicate";
 import { analyzeLeadWithAI } from "@/lib/ai/analyst";
@@ -8,31 +8,64 @@ import { generateFollowUpMessage } from "@/lib/ai/message";
 import { importMappingSchema } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
 import { getScoreCategory } from "@/lib/recovery/score";
+import { sanitizeRow, validateRowCount } from "@/lib/import/security";
+import { rateLimit, getRateLimitHeaders, getClientIp } from "@/lib/security/rate-limit";
+import { getOrganizationUsage, checkSpecificLimit, getPlanForOrganization, incrementUsage } from "@/lib/billing";
+import { logger } from "@/lib/observability/logger";
 
 function sanitizeText(text: string): string {
-  // Treat imported text as DATA, not instructions - strip potential prompt injection
   if (!text) return text;
-  // Remove common prompt injection patterns, but keep as data
   return text
     .replace(/ignore previous instructions/gi, "[filtered]")
     .replace(/reveal system prompt/gi, "[filtered]")
     .replace(/system prompt/gi, "[filtered]")
-    .slice(0, 2000); // limit length
+    .slice(0, 2000);
 }
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  let session: any = null;
+  try {
+    session = await requireAuth();
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Rate limiting
+  const ip = getClientIp(req);
+  const rl = rateLimit(`import_confirm:${session.orgId}`, "import_confirm");
+  if (!rl.allowed) {
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429, headers: getRateLimitHeaders(rl) });
+  }
 
   try {
+    // Billing check
+    const org = await prisma.organization.findUnique({ where: { id: session.orgId } }).catch(() => null);
+    const plan = org ? getPlanForOrganization(org) : "FREE";
+    const usage = await getOrganizationUsage(prisma, session.orgId);
+    const limitCheck = checkSpecificLimit(plan, usage, "import");
+    if (!limitCheck.allowed) {
+      return NextResponse.json({ error: limitCheck.reason, limit: true }, { status: 403, headers: getRateLimitHeaders(rl) });
+    }
+
     const body = await req.json();
     const parsed = importMappingSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400, headers: getRateLimitHeaders(rl) });
     }
     const { mapping, rows, fileName } = parsed.data;
 
-    if (rows.length > 10000) return NextResponse.json({ error: "Too many rows" }, { status: 400 });
+    const rowCountCheck = validateRowCount(rows.length);
+    if (!rowCountCheck.valid) {
+      return NextResponse.json({ error: rowCountCheck.error }, { status: 400, headers: getRateLimitHeaders(rl) });
+    }
+
+    // Check leads limit
+    const leadsCheck = checkSpecificLimit(plan, usage, "leads");
+    if (!leadsCheck.allowed) {
+      return NextResponse.json({ error: leadsCheck.reason, limit: true }, { status: 403, headers: getRateLimitHeaders(rl) });
+    }
 
     await logAudit({
       organizationId: session.organizationId,
@@ -52,7 +85,16 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const normalized = normalizeRows(rows, mapping);
+    // Sanitize rows for security
+    const sanitizedRows: any[] = [];
+    let sanitizationWarnings = 0;
+    for (const row of rows) {
+      const { sanitized, warnings } = sanitizeRow(row);
+      sanitizedRows.push(sanitized);
+      if (warnings.length > 0) sanitizationWarnings++;
+    }
+
+    const normalized = normalizeRows(sanitizedRows, mapping);
 
     const { unique, duplicates: batchDups } = deduplicateBatch(normalized);
 
@@ -77,9 +119,19 @@ export async function POST(req: NextRequest) {
     let totalPotential = 0;
     const errors: string[] = [];
 
+    // Transaction-like processing with error handling
     for (const leadData of toImport) {
       try {
-        // Sanitize text fields to prevent prompt injection
+        // Validate monetary amount
+        if (leadData.dealValue !== null && leadData.dealValue !== undefined) {
+          const monetaryCheck = validateMonetaryAmount(leadData.dealValue, "dealValue");
+          if (!monetaryCheck.valid) {
+            errors.push(`Invalid dealValue for ${leadData.name || "unknown"}: ${monetaryCheck.error}`);
+            continue;
+          }
+          leadData.dealValue = monetaryCheck.value as any;
+        }
+
         const sanitizedLastMessage = leadData.lastMessage ? sanitizeText(leadData.lastMessage) : null;
         const sanitizedRawData = leadData.rawData ? sanitizeText(leadData.rawData) : null;
 
@@ -99,6 +151,7 @@ export async function POST(req: NextRequest) {
             source: leadData.source,
             lastMessage: sanitizedLastMessage,
             rawData: sanitizedRawData || leadData.rawData,
+            provider: "csv",
           },
         });
 
@@ -121,7 +174,7 @@ export async function POST(req: NextRequest) {
             status: lead.status,
             lastContactAt: lead.lastContactAt,
             lastMessage: lead.lastMessage,
-            rawData: lead.rawData ? JSON.parse(lead.rawData) : null,
+            rawData: lead.rawData ? (() => { try { return JSON.parse(lead.rawData); } catch { return lead.rawData; } })() : null,
           });
 
           let generatedMessage: string | null = null;
@@ -144,7 +197,7 @@ export async function POST(req: NextRequest) {
             );
             generatedMessage = msgResult.message;
           } catch (e) {
-            console.warn("message generation failed", e);
+            logger.warn("Message generation failed", { orgId: session.orgId, leadId: lead.id });
           }
 
           const aiAnalysis = await prisma.aIAnalysis.create({
@@ -162,14 +215,14 @@ export async function POST(req: NextRequest) {
               recommendedMessageGoal: analysis.recommendedMessageGoal,
               generatedMessage,
               modelVersion: analysis.modelVersion,
-              factors: analysis.scoreReasons ? analysis.scoreReasons : analysis.factors ? JSON.stringify(analysis.factors) : null,
+              factors: analysis.scoreReasons ? JSON.stringify(analysis.scoreReasons) : analysis.factors ? JSON.stringify(analysis.factors) : null,
               missingInformation: null,
+              tokensUsed: (analysis as any).tokensUsed || null,
             },
           });
 
-          // Create RecoveryOpportunity for inbox
           const category = getScoreCategory(analysis.recoveryScore);
-          const potentialRevenue = lead.dealValue && analysis.recoveryProbability ? lead.dealValue * analysis.recoveryProbability : null;
+          const potentialRevenue = calculatePotentialRevenue(lead.dealValue as any, analysis.recoveryProbability || null);
           if (potentialRevenue) totalPotential += potentialRevenue;
           if (analysis.recoveryScore >= 80) criticalCount++;
           else if (analysis.recoveryScore >= 60) highCount++;
@@ -192,17 +245,24 @@ export async function POST(req: NextRequest) {
               },
             });
           } catch (e) {
-            console.warn("recoveryOpportunity create failed", e);
+            logger.warn("RecoveryOpportunity create failed", { orgId: session.orgId, error: (e as Error).message });
           }
 
           analyzedCount++;
+          
+          // Increment usage
+          await incrementUsage(prisma, session.organizationId, "aiAnalysis", 1);
+          if (aiAnalysis.tokensUsed) {
+            await incrementUsage(prisma, session.organizationId, "tokens", aiAnalysis.tokensUsed);
+          }
         } catch (e: any) {
-          console.error("analysis failed for lead", lead.id, e);
+          logger.error("Analysis failed for lead", { orgId: session.orgId, leadId: lead.id, error: e.message });
           errors.push(`Analysis failed for ${lead.name || lead.id}: ${e.message}`);
         }
 
         importedCount++;
       } catch (e: any) {
+        logger.error("Failed to import lead", { orgId: session.orgId, error: e.message });
         errors.push(`Failed to import row: ${e.message}`);
       }
     }
@@ -218,6 +278,7 @@ export async function POST(req: NextRequest) {
       potentialRecoverableRevenue: Math.round(totalPotential),
       criticalOpportunities: criticalCount,
       highOpportunities: highCount,
+      sanitizationWarnings,
     };
 
     await prisma.importJob.update({
@@ -243,6 +304,9 @@ export async function POST(req: NextRequest) {
       metadata: summary,
     });
 
+    await incrementUsage(prisma, session.organizationId, "import", 1);
+    await incrementUsage(prisma, session.organizationId, "lead", importedCount);
+
     return NextResponse.json({
       imported: importedCount,
       created: importedCount,
@@ -253,9 +317,9 @@ export async function POST(req: NextRequest) {
       errors,
       importJobId: importJob.id,
       summary,
-    });
+    }, { headers: getRateLimitHeaders(rl) });
   } catch (e: any) {
-    console.error("import confirm error", e);
-    return NextResponse.json({ error: e.message || "Import failed" }, { status: 500 });
+    logger.error("Import confirm failed", { orgId: session?.orgId, error: e.message });
+    return NextResponse.json({ error: e.message || "Import failed" }, { status: 500, headers: getRateLimitHeaders(rl) });
   }
 }

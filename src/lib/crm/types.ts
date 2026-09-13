@@ -1,11 +1,12 @@
 /**
- * CRM Provider Abstraction
- * Prepares architecture for future CRM integrations
- * Sprint 2: interfaces + mock provider, no fake live integration
+ * CRM Provider Abstraction - Production Ready
+ * Supports idempotency via externalId, provider, and sync status
  */
 
 export type CRMLead = {
-  id: string;
+  id?: string;
+  externalId?: string;
+  provider?: string;
   name?: string | null;
   email?: string | null;
   phone?: string | null;
@@ -21,7 +22,9 @@ export type CRMLead = {
 };
 
 export type CRMDeal = {
-  id: string;
+  id?: string;
+  externalId?: string;
+  provider?: string;
   leadId?: string | null;
   title?: string | null;
   value?: number | null;
@@ -36,6 +39,7 @@ export type CRMContact = {
   email?: string | null;
   phone?: string | null;
   company?: string | null;
+  rawData?: any;
 };
 
 export type CRMActivity = {
@@ -43,7 +47,9 @@ export type CRMActivity = {
   leadId?: string | null;
   type: string;
   content?: string | null;
-  createdAt: Date;
+  timestamp?: Date;
+  createdAt?: Date;
+  rawData?: any;
 };
 
 export type SyncResult = {
@@ -61,6 +67,7 @@ export interface CRMProvider {
   getContacts(): Promise<CRMContact[]>;
   getActivities(): Promise<CRMActivity[]>;
   sync(): Promise<SyncResult>;
-  mapFields(): Record<string, string>; // provider field → standard field
+  mapFields(): Record<string, string>;
   isConfigured(): boolean;
+  testConnection?(): Promise<{ success: boolean; accountId?: string; error?: string }>;
 }

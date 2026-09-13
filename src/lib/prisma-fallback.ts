@@ -39,6 +39,9 @@ function initTables() {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       slug TEXT UNIQUE NOT NULL,
+      billingPlan TEXT DEFAULT 'FREE',
+      stripeCustomerId TEXT,
+      stripeSubscriptionId TEXT,
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL
     );
@@ -55,6 +58,8 @@ function initTables() {
     CREATE TABLE IF NOT EXISTS Lead (
       id TEXT PRIMARY KEY,
       organizationId TEXT NOT NULL,
+      externalId TEXT,
+      provider TEXT,
       name TEXT,
       phone TEXT,
       email TEXT,
@@ -94,6 +99,8 @@ function initTables() {
       id TEXT PRIMARY KEY,
       organizationId TEXT NOT NULL,
       leadId TEXT,
+      externalId TEXT,
+      provider TEXT,
       title TEXT,
       value REAL,
       stage TEXT,
@@ -120,6 +127,7 @@ function initTables() {
       modelVersion TEXT NOT NULL,
       factors TEXT,
       missingInformation TEXT,
+      tokensUsed INTEGER,
       createdAt TEXT NOT NULL,
       FOREIGN KEY (organizationId) REFERENCES Organization(id) ON DELETE CASCADE,
       FOREIGN KEY (leadId) REFERENCES Lead(id) ON DELETE CASCADE
@@ -227,30 +235,104 @@ function initTables() {
       FOREIGN KEY (organizationId) REFERENCES Organization(id) ON DELETE CASCADE,
       FOREIGN KEY (userId) REFERENCES User(id) ON DELETE SET NULL
     );
+    CREATE TABLE IF NOT EXISTS Integration (
+      id TEXT PRIMARY KEY,
+      organizationId TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'NOT_CONNECTED',
+      accessToken TEXT,
+      refreshToken TEXT,
+      externalAccountId TEXT,
+      lastSyncAt TEXT,
+      lastSyncStatus TEXT,
+      lastSyncError TEXT,
+      metadata TEXT,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL,
+      FOREIGN KEY (organizationId) REFERENCES Organization(id) ON DELETE CASCADE,
+      UNIQUE(organizationId, provider)
+    );
+    CREATE TABLE IF NOT EXISTS Subscription (
+      id TEXT PRIMARY KEY,
+      organizationId TEXT NOT NULL,
+      plan TEXT NOT NULL DEFAULT 'FREE',
+      status TEXT NOT NULL DEFAULT 'FREE',
+      stripeCustomerId TEXT,
+      stripeSubscriptionId TEXT,
+      stripePriceId TEXT,
+      currentPeriodStart TEXT,
+      currentPeriodEnd TEXT,
+      cancelAtPeriodEnd INTEGER DEFAULT 0,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL,
+      FOREIGN KEY (organizationId) REFERENCES Organization(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS Usage (
+      id TEXT PRIMARY KEY,
+      organizationId TEXT NOT NULL,
+      period TEXT NOT NULL,
+      aiAnalyses INTEGER DEFAULT 0,
+      aiMessages INTEGER DEFAULT 0,
+      imports INTEGER DEFAULT 0,
+      leads INTEGER DEFAULT 0,
+      campaigns INTEGER DEFAULT 0,
+      tokensUsed INTEGER DEFAULT 0,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL,
+      FOREIGN KEY (organizationId) REFERENCES Organization(id) ON DELETE CASCADE,
+      UNIQUE(organizationId, period)
+    );
     CREATE INDEX IF NOT EXISTS idx_lead_org ON Lead(organizationId);
     CREATE INDEX IF NOT EXISTS idx_lead_org_demo ON Lead(organizationId, isDemo);
+    CREATE INDEX IF NOT EXISTS idx_lead_org_provider ON Lead(organizationId, provider);
+    CREATE INDEX IF NOT EXISTS idx_lead_org_external ON Lead(organizationId, externalId);
     CREATE INDEX IF NOT EXISTS idx_lead_email ON Lead(email);
     CREATE INDEX IF NOT EXISTS idx_lead_phone ON Lead(phone);
+    CREATE INDEX IF NOT EXISTS idx_lead_org_created ON Lead(organizationId, createdAt);
+    CREATE INDEX IF NOT EXISTS idx_lead_org_lastContact ON Lead(organizationId, lastContactAt);
     CREATE INDEX IF NOT EXISTS idx_analysis_org ON AIAnalysis(organizationId);
     CREATE INDEX IF NOT EXISTS idx_analysis_lead ON AIAnalysis(leadId);
     CREATE INDEX IF NOT EXISTS idx_analysis_score ON AIAnalysis(recoveryScore);
+    CREATE INDEX IF NOT EXISTS idx_analysis_org_score ON AIAnalysis(organizationId, recoveryScore);
+    CREATE INDEX IF NOT EXISTS idx_analysis_org_created ON AIAnalysis(organizationId, createdAt);
     CREATE INDEX IF NOT EXISTS idx_recoveryOpp_org ON RecoveryOpportunity(organizationId);
     CREATE INDEX IF NOT EXISTS idx_recoveryOpp_lead ON RecoveryOpportunity(leadId);
     CREATE INDEX IF NOT EXISTS idx_recoveryOpp_score ON RecoveryOpportunity(score);
+    CREATE INDEX IF NOT EXISTS idx_recoveryOpp_org_status ON RecoveryOpportunity(organizationId, status);
+    CREATE INDEX IF NOT EXISTS idx_recoveryOpp_org_category ON RecoveryOpportunity(organizationId, category);
+    CREATE INDEX IF NOT EXISTS idx_recoveryOpp_org_score ON RecoveryOpportunity(organizationId, score);
     CREATE INDEX IF NOT EXISTS idx_campaign_org ON Campaign(organizationId);
+    CREATE INDEX IF NOT EXISTS idx_campaign_org_status ON Campaign(organizationId, status);
     CREATE INDEX IF NOT EXISTS idx_campaignLead_org ON CampaignLead(organizationId);
     CREATE INDEX IF NOT EXISTS idx_campaignLead_campaign ON CampaignLead(campaignId);
     CREATE INDEX IF NOT EXISTS idx_campaignLead_lead ON CampaignLead(leadId);
+    CREATE INDEX IF NOT EXISTS idx_campaignLead_org_campaign ON CampaignLead(organizationId, campaignId);
     CREATE INDEX IF NOT EXISTS idx_recovery_org ON RecoveryEvent(organizationId);
     CREATE INDEX IF NOT EXISTS idx_recovery_lead ON RecoveryEvent(leadId);
+    CREATE INDEX IF NOT EXISTS idx_recovery_org_outcome ON RecoveryEvent(organizationId, outcome);
+    CREATE INDEX IF NOT EXISTS idx_recovery_org_recoveredAt ON RecoveryEvent(organizationId, recoveredAt);
     CREATE INDEX IF NOT EXISTS idx_audit_org ON AuditLog(organizationId);
+    CREATE INDEX IF NOT EXISTS idx_audit_org_event ON AuditLog(organizationId, event);
+    CREATE INDEX IF NOT EXISTS idx_audit_org_created ON AuditLog(organizationId, createdAt);
     CREATE INDEX IF NOT EXISTS idx_audit_event ON AuditLog(event);
+    CREATE INDEX IF NOT EXISTS idx_integration_org ON Integration(organizationId);
+    CREATE INDEX IF NOT EXISTS idx_subscription_org ON Subscription(organizationId);
+    CREATE INDEX IF NOT EXISTS idx_usage_org ON Usage(organizationId);
+    CREATE INDEX IF NOT EXISTS idx_usage_org_period ON Usage(organizationId, period);
   `);
 
   // Migrations for existing DB - add columns if not exists (ignore errors)
   const migrations = [
+    "ALTER TABLE Organization ADD COLUMN billingPlan TEXT DEFAULT 'FREE'",
+    "ALTER TABLE Organization ADD COLUMN stripeCustomerId TEXT",
+    "ALTER TABLE Organization ADD COLUMN stripeSubscriptionId TEXT",
+    "ALTER TABLE Lead ADD COLUMN externalId TEXT",
+    "ALTER TABLE Lead ADD COLUMN provider TEXT",
+    "ALTER TABLE Deal ADD COLUMN externalId TEXT",
+    "ALTER TABLE Deal ADD COLUMN provider TEXT",
     "ALTER TABLE AIAnalysis ADD COLUMN factors TEXT",
     "ALTER TABLE AIAnalysis ADD COLUMN missingInformation TEXT",
+    "ALTER TABLE AIAnalysis ADD COLUMN tokensUsed INTEGER",
     "ALTER TABLE Campaign ADD COLUMN targetCriteria TEXT",
     "ALTER TABLE Campaign ADD COLUMN createdById TEXT",
     "ALTER TABLE CampaignLead ADD COLUMN messageEdited TEXT",
@@ -301,12 +383,13 @@ function parseAnalysisRow(row: any) {
 function parseGenericDates(row: any) {
   if (!row) return null;
   const out = { ...row };
-  for (const k of ["createdAt", "updatedAt", "lastContactAt", "contactedAt", "recoveredAt"]) {
+  for (const k of ["createdAt", "updatedAt", "lastContactAt", "contactedAt", "recoveredAt", "lastSyncAt", "currentPeriodStart", "currentPeriodEnd"]) {
     if (out[k]) {
       try { out[k] = new Date(out[k]); } catch {}
     }
   }
   if (out.isDemo !== undefined) out.isDemo = Boolean(out.isDemo);
+  if (out.cancelAtPeriodEnd !== undefined) out.cancelAtPeriodEnd = Boolean(out.cancelAtPeriodEnd);
   if (out.dealValue !== undefined && out.dealValue !== null) out.dealValue = Number(out.dealValue);
   if (out.value !== undefined && out.value !== null) out.value = Number(out.value);
   if (out.revenue !== undefined && out.revenue !== null) out.revenue = Number(out.revenue);
@@ -322,6 +405,12 @@ function parseGenericDates(row: any) {
   if (out.duplicateCount !== undefined) out.duplicateCount = Number(out.duplicateCount);
   if (out.skippedCount !== undefined) out.skippedCount = Number(out.skippedCount);
   if (out.errorCount !== undefined) out.errorCount = Number(out.errorCount);
+  if (out.aiAnalyses !== undefined) out.aiAnalyses = Number(out.aiAnalyses);
+  if (out.aiMessages !== undefined) out.aiMessages = Number(out.aiMessages);
+  if (out.imports !== undefined) out.imports = Number(out.imports);
+  if (out.leads !== undefined) out.leads = Number(out.leads);
+  if (out.campaigns !== undefined) out.campaigns = Number(out.campaigns);
+  if (out.tokensUsed !== undefined) out.tokensUsed = Number(out.tokensUsed);
   // JSON fields
   for (const jf of ["factors", "missingInformation", "targetCriteria", "summary", "metadata"]) {
     if (out[jf] && typeof out[jf] === "string") {
@@ -428,13 +517,25 @@ const OrganizationModel = {
     let row: any = null;
     if (where.id) row = db.prepare("SELECT * FROM Organization WHERE id = ?").get(where.id);
     else if (where.slug) row = db.prepare("SELECT * FROM Organization WHERE slug = ?").get(where.slug);
+    else if (where.stripeCustomerId) row = db.prepare("SELECT * FROM Organization WHERE stripeCustomerId = ?").get(where.stripeCustomerId);
     return row ? parseGenericDates(row) : null;
   },
   create: async ({ data }: any) => {
     const id = data.id || cuid();
     const now = nowISO();
-    db.prepare("INSERT INTO Organization (id, name, slug, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)").run(id, data.name, data.slug, now, now);
+    db.prepare("INSERT INTO Organization (id, name, slug, billingPlan, stripeCustomerId, stripeSubscriptionId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(id, data.name, data.slug, data.billingPlan || "FREE", data.stripeCustomerId || null, data.stripeSubscriptionId || null, now, now);
     return parseGenericDates(db.prepare("SELECT * FROM Organization WHERE id = ?").get(id));
+  },
+  update: async ({ where, data }: any) => {
+    const existing = db.prepare("SELECT * FROM Organization WHERE id = ?").get(where.id);
+    if (!existing) throw new Error("Organization not found");
+    const fields: string[] = []; const values: any[] = [];
+    for (const [k, v] of Object.entries(data)) {
+      fields.push(`${k} = ?`); values.push(v);
+    }
+    fields.push("updatedAt = ?"); values.push(nowISO()); values.push(where.id);
+    db.prepare(`UPDATE Organization SET ${fields.join(", ")} WHERE id = ?`).run(...values);
+    return parseGenericDates(db.prepare("SELECT * FROM Organization WHERE id = ?").get(where.id));
   },
 };
 
@@ -455,13 +556,20 @@ const OrganizationMemberModel = {
     if (include?.organization) for (const mem of parsed) { const org = db.prepare("SELECT * FROM Organization WHERE id = ?").get(mem.organizationId); mem.organization = org ? parseGenericDates(org) : null; }
     return parsed;
   },
+  count: async ({ where }: any) => {
+    let rows: any[] = [];
+    if (where?.organizationId) rows = db.prepare("SELECT * FROM OrganizationMember WHERE organizationId = ?").all(where.organizationId);
+    else rows = db.prepare("SELECT * FROM OrganizationMember").all();
+    rows = rows.filter((r: any) => matchesWhere(parseGenericDates(r), where));
+    return rows.length;
+  },
 };
 
 const LeadModel = {
   create: async ({ data }: any) => {
     const id = data.id || cuid();
     const now = nowISO();
-    db.prepare(`INSERT INTO Lead (id, organizationId, name, phone, email, company, manager, product, dealValue, dealStage, status, lastContactAt, source, rawData, lastMessage, isDemo, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, data.organizationId, data.name || null, data.phone || null, data.email || null, data.company || null, data.manager || null, data.product || null, data.dealValue ?? null, data.dealStage || null, data.status || "new", data.lastContactAt ? new Date(data.lastContactAt).toISOString() : null, data.source || null, data.rawData || null, data.lastMessage || null, data.isDemo ? 1 : 0, now, now);
+    db.prepare(`INSERT INTO Lead (id, organizationId, externalId, provider, name, phone, email, company, manager, product, dealValue, dealStage, status, lastContactAt, source, rawData, lastMessage, isDemo, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, data.organizationId, data.externalId || null, data.provider || null, data.name || null, data.phone || null, data.email || null, data.company || null, data.manager || null, data.product || null, data.dealValue ?? null, data.dealStage || null, data.status || "new", data.lastContactAt ? new Date(data.lastContactAt).toISOString() : null, data.source || null, data.rawData || null, data.lastMessage || null, data.isDemo ? 1 : 0, now, now);
     return parseLeadRow(db.prepare("SELECT * FROM Lead WHERE id = ?").get(id));
   },
   findFirst: async ({ where, include }: any) => {
@@ -485,6 +593,7 @@ const LeadModel = {
     else rows = db.prepare("SELECT * FROM Lead").all().map(parseLeadRow);
     rows = rows.filter((r: any) => matchesWhere(r, where));
     if (where?.id?.in) { const ids = new Set(where.id.in); rows = rows.filter((r: any) => ids.has(r.id)); }
+    if (where?.externalId?.in) { const ids = new Set(where.externalId.in); rows = rows.filter((r: any) => ids.has(r.externalId)); }
     if (include?.aiAnalyses) for (const lead of rows) lead.aiAnalyses = db.prepare("SELECT * FROM AIAnalysis WHERE leadId = ? ORDER BY createdAt DESC").all(lead.id).map(parseAnalysisRow);
     if (include?.recoveryOpportunities) for (const lead of rows) lead.recoveryOpportunities = db.prepare("SELECT * FROM RecoveryOpportunity WHERE leadId = ? ORDER BY createdAt DESC").all(lead.id).map(parseGenericDates);
     if (orderBy) rows = applyOrderBy(rows, orderBy);
@@ -522,6 +631,20 @@ const LeadModel = {
     db.prepare(`UPDATE Lead SET ${fields.join(", ")} WHERE id = ?`).run(...values);
     return parseLeadRow(db.prepare("SELECT * FROM Lead WHERE id = ?").get(where.id));
   },
+  updateMany: async ({ where, data }: any) => {
+    let rows: any[] = [];
+    if (where?.organizationId) rows = db.prepare("SELECT * FROM Lead WHERE organizationId = ?").all(where.organizationId).map(parseLeadRow);
+    else rows = db.prepare("SELECT * FROM Lead").all().map(parseLeadRow);
+    rows = rows.filter((r: any) => matchesWhere(r, where));
+    const fields = Object.keys(data);
+    for (const r of rows) {
+      const setClause = fields.map((f) => `${f} = ?`).join(", ") + ", updatedAt = ?";
+      const vals = fields.map((f) => (data as any)[f]);
+      vals.push(nowISO(), r.id);
+      db.prepare(`UPDATE Lead SET ${setClause} WHERE id = ?`).run(...vals);
+    }
+    return { count: rows.length };
+  },
   groupBy: async ({ by, where }: any) => {
     let rows: any[] = [];
     if (where?.organizationId) rows = db.prepare("SELECT * FROM Lead WHERE organizationId = ?").all(where.organizationId).map(parseLeadRow);
@@ -537,7 +660,7 @@ const AIAnalysisModel = {
   create: async ({ data }: any) => {
     const id = data.id || cuid();
     const now = nowISO();
-    db.prepare(`INSERT INTO AIAnalysis (id, organizationId, leadId, leadStatus, buyingIntent, lossReason, recoveryScore, recoveryProbability, confidence, recommendedAction, reasoningSummary, recommendedMessageGoal, generatedMessage, modelVersion, factors, missingInformation, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, data.organizationId, data.leadId, data.leadStatus, data.buyingIntent, data.lossReason, data.recoveryScore, data.recoveryProbability ?? null, data.confidence, data.recommendedAction, data.reasoningSummary, data.recommendedMessageGoal || null, data.generatedMessage || null, data.modelVersion || "v1", data.factors ? JSON.stringify(data.factors) : null, data.missingInformation ? JSON.stringify(data.missingInformation) : null, now);
+    db.prepare(`INSERT INTO AIAnalysis (id, organizationId, leadId, leadStatus, buyingIntent, lossReason, recoveryScore, recoveryProbability, confidence, recommendedAction, reasoningSummary, recommendedMessageGoal, generatedMessage, modelVersion, factors, missingInformation, tokensUsed, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, data.organizationId, data.leadId, data.leadStatus, data.buyingIntent, data.lossReason, data.recoveryScore, data.recoveryProbability ?? null, data.confidence, data.recommendedAction, data.reasoningSummary, data.recommendedMessageGoal || null, data.generatedMessage || null, data.modelVersion || "v1", data.factors ? JSON.stringify(data.factors) : null, data.missingInformation ? JSON.stringify(data.missingInformation) : null, data.tokensUsed || null, now);
     return parseAnalysisRow(db.prepare("SELECT * FROM AIAnalysis WHERE id = ?").get(id));
   },
   findMany: async ({ where, include, orderBy, skip, take }: any) => {
@@ -614,10 +737,11 @@ const RecoveryOpportunityModel = {
     return rows.length;
   },
   findFirst: async ({ where }: any) => {
-    let row: any = null;
-    if (where?.id && where?.organizationId) row = db.prepare("SELECT * FROM RecoveryOpportunity WHERE id = ? AND organizationId = ?").get(where.id, where.organizationId);
-    else if (where?.id) row = db.prepare("SELECT * FROM RecoveryOpportunity WHERE id = ?").get(where.id);
-    return row ? parseGenericDates(row) : null;
+    let rows: any[] = [];
+    if (where?.organizationId) rows = db.prepare("SELECT * FROM RecoveryOpportunity WHERE organizationId = ?").all(where.organizationId).map(parseGenericDates);
+    else rows = db.prepare("SELECT * FROM RecoveryOpportunity").all().map(parseGenericDates);
+    rows = rows.filter((r: any) => matchesWhere(r, where));
+    return rows[0] || null;
   },
   update: async ({ where, data }: any) => {
     const fields: string[] = []; const values: any[] = [];
@@ -628,6 +752,19 @@ const RecoveryOpportunityModel = {
     fields.push("updatedAt = ?"); values.push(nowISO()); values.push(where.id);
     db.prepare(`UPDATE RecoveryOpportunity SET ${fields.join(", ")} WHERE id = ?`).run(...values);
     return parseGenericDates(db.prepare("SELECT * FROM RecoveryOpportunity WHERE id = ?").get(where.id));
+  },
+  updateMany: async ({ where, data }: any) => {
+    let rows: any[] = [];
+    if (where?.organizationId) rows = db.prepare("SELECT * FROM RecoveryOpportunity WHERE organizationId = ?").all(where.organizationId).map(parseGenericDates);
+    else rows = db.prepare("SELECT * FROM RecoveryOpportunity").all().map(parseGenericDates);
+    rows = rows.filter((r: any) => matchesWhere(r, where));
+    for (const r of rows) {
+      const fields: string[] = []; const values: any[] = [];
+      for (const [k, v] of Object.entries(data)) { fields.push(`${k} = ?`); values.push(v); }
+      fields.push("updatedAt = ?"); values.push(nowISO()); values.push(r.id);
+      db.prepare(`UPDATE RecoveryOpportunity SET ${fields.join(", ")} WHERE id = ?`).run(...values);
+    }
+    return { count: rows.length };
   },
 };
 
@@ -671,6 +808,13 @@ const CampaignModel = {
     db.prepare(`UPDATE Campaign SET ${fields.join(", ")} WHERE id = ?`).run(...values);
     return parseGenericDates(db.prepare("SELECT * FROM Campaign WHERE id = ?").get(where.id));
   },
+  count: async ({ where }: any) => {
+    let rows: any[] = [];
+    if (where?.organizationId) rows = db.prepare("SELECT * FROM Campaign WHERE organizationId = ?").all(where.organizationId).map(parseGenericDates);
+    else rows = db.prepare("SELECT * FROM Campaign").all().map(parseGenericDates);
+    rows = rows.filter((r: any) => matchesWhere(r, where));
+    return rows.length;
+  },
 };
 
 const CampaignLeadModel = {
@@ -703,22 +847,51 @@ const CampaignLeadModel = {
     db.prepare(`UPDATE CampaignLead SET ${fields.join(", ")} WHERE id = ?`).run(...values);
     return parseGenericDates(db.prepare("SELECT * FROM CampaignLead WHERE id = ?").get(where.id));
   },
+  updateMany: async ({ where, data }: any) => {
+    let rows: any[] = [];
+    if (where?.organizationId) rows = db.prepare("SELECT * FROM CampaignLead WHERE organizationId = ?").all(where.organizationId).map(parseGenericDates);
+    else rows = db.prepare("SELECT * FROM CampaignLead").all().map(parseGenericDates);
+    rows = rows.filter((r: any) => matchesWhere(r, where));
+    for (const r of rows) {
+      const fields: string[] = []; const values: any[] = [];
+      for (const [k, v] of Object.entries(data)) { fields.push(`${k} = ?`); values.push(v); }
+      fields.push("updatedAt = ?"); values.push(nowISO()); values.push(r.id);
+      db.prepare(`UPDATE CampaignLead SET ${fields.join(", ")} WHERE id = ?`).run(...values);
+    }
+    return { count: rows.length };
+  },
+  count: async ({ where }: any) => {
+    let rows: any[] = [];
+    if (where?.organizationId) rows = db.prepare("SELECT * FROM CampaignLead WHERE organizationId = ?").all(where.organizationId).map(parseGenericDates);
+    else rows = db.prepare("SELECT * FROM CampaignLead").all().map(parseGenericDates);
+    rows = rows.filter((r: any) => matchesWhere(r, where));
+    return rows.length;
+  },
 };
 
 const RecoveryEventModel = {
   create: async ({ data }: any) => {
     const id = data.id || cuid();
     const now = nowISO();
-    db.prepare("INSERT INTO RecoveryEvent (id, organizationId, leadId, opportunityId, campaignId, userId, type, outcome, revenue, recoveredAt, source, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(id, data.organizationId, data.leadId, data.opportunityId || null, data.campaignId || null, data.userId || null, data.type || null, data.outcome, data.revenue ?? null, data.recoveredAt ? new Date(data.recoveredAt).toISOString() : null, data.source || null, data.note || null, now);
+    db.prepare("INSERT INTO RecoveryEvent (id, organizationId, leadId, opportunityId, campaignId, userId, type, outcome, revenue, recoveredAt, source, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(id, data.organizationId, data.leadId, data.opportunityId || null, data.campaignId || null, data.userId || data.createdBy || null, data.type || null, data.outcome, data.revenue ?? null, data.recoveredAt ? new Date(data.recoveredAt).toISOString() : null, data.source || null, data.note || null, now);
     return parseGenericDates(db.prepare("SELECT * FROM RecoveryEvent WHERE id = ?").get(id));
   },
-  findMany: async ({ where, orderBy }: any) => {
+  findMany: async ({ where, orderBy, take }: any) => {
     let rows: any[] = [];
     if (where?.organizationId) rows = db.prepare("SELECT * FROM RecoveryEvent WHERE organizationId = ?").all(where.organizationId).map(parseGenericDates);
     else rows = db.prepare("SELECT * FROM RecoveryEvent").all().map(parseGenericDates);
     rows = rows.filter((r: any) => matchesWhere(r, where));
+    if (where?.leadId?.in) { const ids = new Set(where.leadId.in); rows = rows.filter((r: any) => ids.has(r.leadId)); }
     if (orderBy) rows = applyOrderBy(rows, orderBy);
+    if (take) rows = rows.slice(0, take);
     return rows;
+  },
+  count: async ({ where }: any) => {
+    let rows: any[] = [];
+    if (where?.organizationId) rows = db.prepare("SELECT * FROM RecoveryEvent WHERE organizationId = ?").all(where.organizationId).map(parseGenericDates);
+    else rows = db.prepare("SELECT * FROM RecoveryEvent").all().map(parseGenericDates);
+    rows = rows.filter((r: any) => matchesWhere(r, where));
+    return rows.length;
   },
 };
 
@@ -726,7 +899,7 @@ const ImportJobModel = {
   create: async ({ data }: any) => {
     const id = data.id || cuid();
     const now = nowISO();
-    db.prepare("INSERT INTO ImportJob (id, organizationId, fileName, status, totalRows, processedRows, createdCount, updatedCount, duplicateCount, skippedCount, errorCount, errors, mapping, summary, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(id, data.organizationId, data.fileName, data.status || "pending", data.totalRows || 0, data.processedRows || 0, data.createdCount || 0, data.updatedCount || 0, data.duplicateCount || 0, data.skippedCount || 0, data.errorCount || 0, data.errors || null, data.mapping || null, data.summary ? JSON.stringify(data.summary) : null, now, now);
+    db.prepare("INSERT INTO ImportJob (id, organizationId, fileName, status, totalRows, processedRows, createdCount, updatedCount, duplicateCount, skippedCount, errorCount, errors, mapping, summary, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(id, data.organizationId, data.fileName, data.status || "pending", data.totalRows || 0, data.processedRows || 0, data.createdCount || 0, data.updatedCount || 0, data.duplicateCount || 0, data.skippedCount || 0, data.errorCount || 0, data.errors ? JSON.stringify(data.errors) : null, data.mapping ? JSON.stringify(data.mapping) : null, data.summary ? JSON.stringify(data.summary) : null, now, now);
     return parseGenericDates(db.prepare("SELECT * FROM ImportJob WHERE id = ?").get(id));
   },
   update: async ({ where, data }: any) => {
@@ -734,20 +907,28 @@ const ImportJobModel = {
     if (!existing) throw new Error("ImportJob not found");
     const fields: string[] = []; const values: any[] = [];
     for (const [k, v] of Object.entries(data)) {
-      if (k === "summary" || k === "mapping") { fields.push(`${k} = ?`); values.push(typeof v === "object" ? JSON.stringify(v) : v); }
+      if (k === "summary" || k === "mapping" || k === "errors") { fields.push(`${k} = ?`); values.push(typeof v === "object" ? JSON.stringify(v) : v); }
       else { fields.push(`${k} = ?`); values.push(typeof v === "object" ? JSON.stringify(v) : v); }
     }
     fields.push("updatedAt = ?"); values.push(nowISO()); values.push(where.id);
     db.prepare(`UPDATE ImportJob SET ${fields.join(", ")} WHERE id = ?`).run(...values);
     return parseGenericDates(db.prepare("SELECT * FROM ImportJob WHERE id = ?").get(where.id));
   },
-  findMany: async ({ where, orderBy }: any) => {
+  findMany: async ({ where, orderBy, take }: any) => {
     let rows: any[] = [];
     if (where?.organizationId) rows = db.prepare("SELECT * FROM ImportJob WHERE organizationId = ?").all(where.organizationId).map(parseGenericDates);
     else rows = db.prepare("SELECT * FROM ImportJob").all().map(parseGenericDates);
     rows = rows.filter((r: any) => matchesWhere(r, where));
     if (orderBy) rows = applyOrderBy(rows, orderBy);
+    if (take) rows = rows.slice(0, take);
     return rows;
+  },
+  count: async ({ where }: any) => {
+    let rows: any[] = [];
+    if (where?.organizationId) rows = db.prepare("SELECT * FROM ImportJob WHERE organizationId = ?").all(where.organizationId).map(parseGenericDates);
+    else rows = db.prepare("SELECT * FROM ImportJob").all().map(parseGenericDates);
+    rows = rows.filter((r: any) => matchesWhere(r, where));
+    return rows.length;
   },
 };
 
@@ -755,7 +936,7 @@ const AuditLogModel = {
   create: async ({ data }: any) => {
     const id = data.id || cuid();
     const now = nowISO();
-    db.prepare("INSERT INTO AuditLog (id, organizationId, userId, event, entityType, entityId, metadata, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(id, data.organizationId, data.userId || null, data.event, data.entityType || null, data.entityId || null, data.metadata ? JSON.stringify(data.metadata) : null, now);
+    db.prepare("INSERT INTO AuditLog (id, organizationId, userId, event, entityType, entityId, metadata, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(id, data.organizationId, data.userId || null, data.event, data.entityType || null, data.entityId || null, data.metadata ? (typeof data.metadata === "string" ? data.metadata : JSON.stringify(data.metadata)) : null, now);
     return parseGenericDates(db.prepare("SELECT * FROM AuditLog WHERE id = ?").get(id));
   },
   findMany: async ({ where, orderBy, take }: any) => {
@@ -767,6 +948,13 @@ const AuditLogModel = {
     if (take) rows = rows.slice(0, take);
     return rows;
   },
+  count: async ({ where }: any) => {
+    let rows: any[] = [];
+    if (where?.organizationId) rows = db.prepare("SELECT * FROM AuditLog WHERE organizationId = ?").all(where.organizationId).map(parseGenericDates);
+    else rows = db.prepare("SELECT * FROM AuditLog").all().map(parseGenericDates);
+    rows = rows.filter((r: any) => matchesWhere(r, where));
+    return rows.length;
+  },
 };
 
 const ConversationModel = { findMany: async () => [], create: async ({ data }: any) => ({ id: cuid(), ...data }), };
@@ -776,13 +964,184 @@ const DealModel = {
     let rows: any[] = [];
     if (where?.organizationId) rows = db.prepare("SELECT * FROM Deal WHERE organizationId = ?").all(where.organizationId).map(parseGenericDates);
     else rows = db.prepare("SELECT * FROM Deal").all().map(parseGenericDates);
-    return rows.filter((r: any) => matchesWhere(r, where));
+    rows = rows.filter((r: any) => matchesWhere(r, where));
+    if (where?.externalId?.in) { const ids = new Set(where.externalId.in); rows = rows.filter((r: any) => ids.has(r.externalId)); }
+    return rows;
+  },
+  findFirst: async ({ where }: any) => {
+    let rows: any[] = [];
+    if (where?.organizationId) rows = db.prepare("SELECT * FROM Deal WHERE organizationId = ?").all(where.organizationId).map(parseGenericDates);
+    else rows = db.prepare("SELECT * FROM Deal").all().map(parseGenericDates);
+    rows = rows.filter((r: any) => matchesWhere(r, where));
+    return rows[0] || null;
   },
   create: async ({ data }: any) => {
     const id = data.id || cuid();
     const now = nowISO();
-    db.prepare("INSERT INTO Deal (id, organizationId, leadId, title, value, stage, status, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(id, data.organizationId, data.leadId || null, data.title || null, data.value ?? null, data.stage || null, data.status || null, now, now);
+    db.prepare("INSERT INTO Deal (id, organizationId, leadId, externalId, provider, title, value, stage, status, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(id, data.organizationId, data.leadId || null, data.externalId || null, data.provider || null, data.title || null, data.value ?? null, data.stage || null, data.status || null, now, now);
     return parseGenericDates(db.prepare("SELECT * FROM Deal WHERE id = ?").get(id));
+  },
+  createMany: async ({ data }: any) => {
+    let count = 0;
+    for (const d of data) {
+      try { await DealModel.create({ data: d }); count++; } catch {}
+    }
+    return { count };
+  },
+  update: async ({ where, data }: any) => {
+    const fields: string[] = []; const values: any[] = [];
+    for (const [k, v] of Object.entries(data)) { fields.push(`${k} = ?`); values.push(v); }
+    fields.push("updatedAt = ?"); values.push(nowISO()); values.push(where.id);
+    db.prepare(`UPDATE Deal SET ${fields.join(", ")} WHERE id = ?`).run(...values);
+    return parseGenericDates(db.prepare("SELECT * FROM Deal WHERE id = ?").get(where.id));
+  },
+  count: async ({ where }: any) => {
+    let rows: any[] = [];
+    if (where?.organizationId) rows = db.prepare("SELECT * FROM Deal WHERE organizationId = ?").all(where.organizationId).map(parseGenericDates);
+    else rows = db.prepare("SELECT * FROM Deal").all().map(parseGenericDates);
+    rows = rows.filter((r: any) => matchesWhere(r, where));
+    return rows.length;
+  },
+};
+
+const IntegrationModel = {
+  create: async ({ data }: any) => {
+    const id = data.id || cuid();
+    const now = nowISO();
+    db.prepare("INSERT INTO Integration (id, organizationId, provider, status, accessToken, refreshToken, externalAccountId, lastSyncAt, lastSyncStatus, lastSyncError, metadata, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(id, data.organizationId, data.provider, data.status || "NOT_CONNECTED", data.accessToken || null, data.refreshToken || null, data.externalAccountId || null, data.lastSyncAt ? new Date(data.lastSyncAt).toISOString() : null, data.lastSyncStatus || null, data.lastSyncError || null, data.metadata ? JSON.stringify(data.metadata) : null, now, now);
+    return parseGenericDates(db.prepare("SELECT * FROM Integration WHERE id = ?").get(id));
+  },
+  findMany: async ({ where }: any) => {
+    let rows: any[] = [];
+    if (where?.organizationId) rows = db.prepare("SELECT * FROM Integration WHERE organizationId = ?").all(where.organizationId).map(parseGenericDates);
+    else rows = db.prepare("SELECT * FROM Integration").all().map(parseGenericDates);
+    rows = rows.filter((r: any) => matchesWhere(r, where));
+    return rows;
+  },
+  findFirst: async ({ where }: any) => {
+    let rows: any[] = [];
+    if (where?.organizationId) rows = db.prepare("SELECT * FROM Integration WHERE organizationId = ?").all(where.organizationId).map(parseGenericDates);
+    else rows = db.prepare("SELECT * FROM Integration").all().map(parseGenericDates);
+    rows = rows.filter((r: any) => matchesWhere(r, where));
+    return rows[0] || null;
+  },
+  findUnique: async ({ where }: any) => {
+    let row: any = null;
+    if (where.id) row = db.prepare("SELECT * FROM Integration WHERE id = ?").get(where.id);
+    else if (where.organizationId_provider) {
+      row = db.prepare("SELECT * FROM Integration WHERE organizationId = ? AND provider = ?").get(where.organizationId_provider.organizationId, where.organizationId_provider.provider);
+    }
+    return row ? parseGenericDates(row) : null;
+  },
+  update: async ({ where, data }: any) => {
+    const fields: string[] = []; const values: any[] = [];
+    for (const [k, v] of Object.entries(data)) {
+      if (k === "lastSyncAt" && v) { fields.push(`${k} = ?`); values.push(new Date(v as any).toISOString()); }
+      else { fields.push(`${k} = ?`); values.push(v); }
+    }
+    fields.push("updatedAt = ?"); values.push(nowISO()); values.push(where.id);
+    db.prepare(`UPDATE Integration SET ${fields.join(", ")} WHERE id = ?`).run(...values);
+    return parseGenericDates(db.prepare("SELECT * FROM Integration WHERE id = ?").get(where.id));
+  },
+  upsert: async ({ where, update, create }: any) => {
+    const existing = await IntegrationModel.findUnique({ where });
+    if (existing) return IntegrationModel.update({ where: { id: existing.id }, data: update });
+    return IntegrationModel.create({ data: create });
+  },
+  delete: async ({ where }: any) => {
+    db.prepare("DELETE FROM Integration WHERE id = ?").run(where.id);
+    return { id: where.id };
+  },
+};
+
+const SubscriptionModel = {
+  create: async ({ data }: any) => {
+    const id = data.id || cuid();
+    const now = nowISO();
+    db.prepare("INSERT INTO Subscription (id, organizationId, plan, status, stripeCustomerId, stripeSubscriptionId, stripePriceId, currentPeriodStart, currentPeriodEnd, cancelAtPeriodEnd, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(id, data.organizationId, data.plan || "FREE", data.status || "FREE", data.stripeCustomerId || null, data.stripeSubscriptionId || null, data.stripePriceId || null, data.currentPeriodStart ? new Date(data.currentPeriodStart).toISOString() : null, data.currentPeriodEnd ? new Date(data.currentPeriodEnd).toISOString() : null, data.cancelAtPeriodEnd ? 1 : 0, now, now);
+    return parseGenericDates(db.prepare("SELECT * FROM Subscription WHERE id = ?").get(id));
+  },
+  findMany: async ({ where }: any) => {
+    let rows: any[] = [];
+    if (where?.organizationId) rows = db.prepare("SELECT * FROM Subscription WHERE organizationId = ?").all(where.organizationId).map(parseGenericDates);
+    else rows = db.prepare("SELECT * FROM Subscription").all().map(parseGenericDates);
+    rows = rows.filter((r: any) => matchesWhere(r, where));
+    return rows;
+  },
+  findFirst: async ({ where }: any) => {
+    let rows: any[] = [];
+    if (where?.organizationId) rows = db.prepare("SELECT * FROM Subscription WHERE organizationId = ?").all(where.organizationId).map(parseGenericDates);
+    else rows = db.prepare("SELECT * FROM Subscription").all().map(parseGenericDates);
+    rows = rows.filter((r: any) => matchesWhere(r, where));
+    return rows[0] || null;
+  },
+  findUnique: async ({ where }: any) => {
+    let row: any = null;
+    if (where.id) row = db.prepare("SELECT * FROM Subscription WHERE id = ?").get(where.id);
+    else if (where.stripeSubscriptionId) row = db.prepare("SELECT * FROM Subscription WHERE stripeSubscriptionId = ?").get(where.stripeSubscriptionId);
+    return row ? parseGenericDates(row) : null;
+  },
+  update: async ({ where, data }: any) => {
+    const fields: string[] = []; const values: any[] = [];
+    for (const [k, v] of Object.entries(data)) {
+      if ((k === "currentPeriodStart" || k === "currentPeriodEnd") && v) { fields.push(`${k} = ?`); values.push(new Date(v as any).toISOString()); }
+      else { fields.push(`${k} = ?`); values.push(v); }
+    }
+    fields.push("updatedAt = ?"); values.push(nowISO()); values.push(where.id);
+    db.prepare(`UPDATE Subscription SET ${fields.join(", ")} WHERE id = ?`).run(...values);
+    return parseGenericDates(db.prepare("SELECT * FROM Subscription WHERE id = ?").get(where.id));
+  },
+  upsert: async ({ where, update, create }: any) => {
+    const existing = await SubscriptionModel.findUnique({ where });
+    if (existing) return SubscriptionModel.update({ where: { id: existing.id }, data: update });
+    return SubscriptionModel.create({ data: create });
+  },
+};
+
+const UsageModel = {
+  create: async ({ data }: any) => {
+    const id = data.id || cuid();
+    const now = nowISO();
+    db.prepare("INSERT INTO Usage (id, organizationId, period, aiAnalyses, aiMessages, imports, leads, campaigns, tokensUsed, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(id, data.organizationId, data.period, data.aiAnalyses || 0, data.aiMessages || 0, data.imports || 0, data.leads || 0, data.campaigns || 0, data.tokensUsed || 0, now, now);
+    return parseGenericDates(db.prepare("SELECT * FROM Usage WHERE id = ?").get(id));
+  },
+  findMany: async ({ where }: any) => {
+    let rows: any[] = [];
+    if (where?.organizationId) rows = db.prepare("SELECT * FROM Usage WHERE organizationId = ?").all(where.organizationId).map(parseGenericDates);
+    else rows = db.prepare("SELECT * FROM Usage").all().map(parseGenericDates);
+    rows = rows.filter((r: any) => matchesWhere(r, where));
+    return rows;
+  },
+  findFirst: async ({ where }: any) => {
+    let rows: any[] = [];
+    if (where?.organizationId) rows = db.prepare("SELECT * FROM Usage WHERE organizationId = ?").all(where.organizationId).map(parseGenericDates);
+    else rows = db.prepare("SELECT * FROM Usage").all().map(parseGenericDates);
+    rows = rows.filter((r: any) => matchesWhere(r, where));
+    return rows[0] || null;
+  },
+  findUnique: async ({ where }: any) => {
+    let row: any = null;
+    if (where.organizationId_period) {
+      row = db.prepare("SELECT * FROM Usage WHERE organizationId = ? AND period = ?").get(where.organizationId_period.organizationId, where.organizationId_period.period);
+    }
+    return row ? parseGenericDates(row) : null;
+  },
+  update: async ({ where, data }: any) => {
+    const fields: string[] = []; const values: any[] = [];
+    for (const [k, v] of Object.entries(data)) { fields.push(`${k} = ?`); values.push(v); }
+    fields.push("updatedAt = ?"); values.push(nowISO()); values.push(where.id);
+    db.prepare(`UPDATE Usage SET ${fields.join(", ")} WHERE id = ?`).run(...values);
+    return parseGenericDates(db.prepare("SELECT * FROM Usage WHERE id = ?").get(where.id));
+  },
+  upsert: async ({ where, update, create }: any) => {
+    const existing = await UsageModel.findUnique({ where });
+    if (existing) {
+      // For usage, we need to increment or update
+      const merged = { ...existing, ...update };
+      // If update has increment logic, handle
+      return UsageModel.update({ where: { id: existing.id }, data: merged });
+    }
+    return UsageModel.create({ data: create });
   },
 };
 
@@ -801,6 +1160,18 @@ export const prismaFallback = {
   recoveryEvent: RecoveryEventModel,
   importJob: ImportJobModel,
   auditLog: AuditLogModel,
+  integration: IntegrationModel,
+  subscription: SubscriptionModel,
+  usage: UsageModel,
+  $transaction: async (fn: any) => {
+    // Simple transaction simulation for SQLite fallback - just execute
+    // In real Postgres, this would be a proper transaction
+    if (typeof fn === "function") {
+      return fn(prismaFallback);
+    }
+    // If array of promises
+    return Promise.all(fn);
+  },
 };
 
 export default prismaFallback;

@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
           role: existingUser.memberships[0].role,
         });
         await setSessionCookie(token);
-        session = { userId: existingUser.id, email, organizationId: orgId, role: existingUser.memberships[0].role };
+        session = { userId: existingUser.id, email, organizationId: orgId, orgId, role: existingUser.memberships[0].role } as any;
       } else {
         const passwordHash = await hashPassword("demo12345");
         const user = await prisma.user.create({
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
         orgId = org.id;
         const token = await createSession({ userId: user.id, email, organizationId: org.id, role: "OWNER" });
         await setSessionCookie(token);
-        session = { userId: user.id, email, organizationId: org.id, role: "OWNER" };
+        session = { userId: user.id, email, organizationId: org.id, orgId: org.id, role: "OWNER" } as any;
       }
     } else {
       orgId = session.organizationId;

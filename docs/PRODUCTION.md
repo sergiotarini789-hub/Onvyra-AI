@@ -1,166 +1,360 @@
-# Onvyra v1.0 — Production Documentation
+# Onvyra AI - Production Readiness Guide
 
-## Architecture
+This document describes production architecture, deployment, and operational requirements for Onvyra AI v1.0.
+
+## Architecture Overview
+
+Onvyra AI is a Next.js 14 application with:
+- **Frontend**: Next.js App Router, React Server Components, Tailwind CSS
+- **Database**: PostgreSQL (production), SQLite fallback (dev/sandbox)
+- **Auth**: JWT httpOnly cookies, bcrypt hashing, org-scoped sessions
+- **AI**: OpenAI API with Zod validation, caching, token tracking
+- **CRM**: HubSpot OAuth 2.0 READ-ONLY integration
+- **Billing**: Stripe Checkout + Webhooks with signature verification
+- **Import**: CSV/XLSX parsing with security hardening
+
+### Request Flow
 ```
-Frontend (Next.js 14 App Router, Tailwind, Server Components, TypeScript)
-  ↓
-API Routes (Route Handlers, Zod validation, auth via getSession, RBAC via roles.ts, tenant isolation via orgId)
-  ↓
-Business Logic (recovery/score 2.0 explainable, probability breakdown, revenue deterministic, import/normalization/duplicate/sanitize, ai/analyst/service/message, billing limits, audit helper)
-  ↓
-Database (Prisma schema, SQLite fallback dev.db via node:sqlite for sandbox, Postgres target for prod, indexes on orgId, email, phone, dealValue, recoveryScore)
-  ↓
-AI Service (service.ts isolates LLM, OpenAI gpt-4o-mini if OPENAI_API_KEY else deterministic mock fallback, Zod validation, retry)
-  ↓
-CRM Abstraction (types.ts interface, mock.ts sample data, hubspot.ts READ-ONLY skeleton requiring HUBSPOT_API_KEY, no auto-send)
-  ↓
-Observability (AuditLog org-scoped no secrets, analytics.ts events, console logs for diagnostics)
+Browser -> Next.js (middleware auth) -> API Routes (tenant isolation, rate limit, billing check) -> Prisma (Postgres) -> External APIs (OpenAI, HubSpot, Stripe)
 ```
 
-## Database
-- **Provider:** SQLite for sandbox (`file:./dev.db`), Postgres for production (`postgresql://user:pass@host:5432/onvyra`)
-- **Why SQLite fallback:** Prisma engine download blocked in sandbox (binaries.prisma.sh TLS via Cloudflare). Node 22 built-in `node:sqlite` used as fallback via `src/lib/prisma-fallback.ts`. Production should use Postgres + Prisma.
-- **Schema:** Organization, User, OrganizationMember (role OWNER/ADMIN/MEMBER), Lead (orgId, name, phone, email, company, manager, product, dealValue, dealStage, status, lastContactAt, source, rawData JSON, lastMessage, isDemo), Conversation, Message, Deal, AIAnalysis (factors JSON, missingInformation JSON), RecoveryOpportunity (category, potentialRevenue, factors, reasoningSummary, recommendedAction), Campaign (targetCriteria JSON, createdBy), CampaignLead (messageEdited, messageStatus pending/ready/sent/manual_required, contactedAt, response, outcome, revenue), RecoveryEvent (opportunityId, campaignId, userId, type, outcome, revenue, recoveredAt, source, note), ImportJob (createdCount, updatedCount, duplicateCount, skippedCount, errorCount, summary JSON), AuditLog (orgId, userId, event, entityType, entityId, metadata JSON)
-- **Indexes:** orgId everywhere, email, phone, dealValue, recoveryScore, confidence, status, category, etc.
-- **Monetary Precision:** Currently Float but validated, documented to use Decimal/numeric in Postgres prod (Prisma Decimal). No floating point for financial amounts if DB layer can support safer decimal — TODO for Postgres migration.
-- **Migrations:** `prisma migrate dev` for dev, `prisma migrate deploy` for prod, `prisma generate` for client
-- **Backups:** Daily in production, document retention
-- **Difference SQLite vs Postgres:** SQLite lacks some pg features (e.g., Decimal, JSONB, full-text), but schema compatible via Prisma. For production, change provider to postgresql in schema.prisma, ensure DATABASE_URL postgres, run migrations.
+## Database - PostgreSQL Production
 
-## Authentication
-- **Password Hashing:** bcryptjs 10 rounds, secure
-- **Sessions:** JWT HS256 signed with JWT_SECRET (min 32 chars random), httpOnly cookie `onvyra_session`, secure in production, SameSite lax, maxAge 7d, path /
-- **Session Handling:** `src/lib/auth.ts` createSession, verifySession, getSession, setSessionCookie, clearSessionCookie, requireAuth, getCurrentOrganization, getCurrentUser, withTenant helper
-- **Authorization:** Every protected API checks getSession, then orgId scoping, then role via `src/lib/roles.ts`
-- **Limitations:** No refresh token rotation yet (could be added), no 2FA (not mandatory for v1.0 unless straightforward), session expiration 7d, no concurrent session limit — documented
-- **Tenant Isolation:** Every prisma query includes `where: { organizationId: session.organizationId }`, tested cross-tenant READ/WRITE, IDOR with substituted IDs
+### Provider
+- **Development**: SQLite file:./dev.db via node:sqlite fallback (sandbox blocks Prisma binary download)
+- **Production**: PostgreSQL required. Set `DATABASE_URL=postgresql://user:password@host:5432/onvyra`
 
-## Security
-- **Tenant Isolation Non-Negotiable:** Audit every API route, ensure orgId in where clause, test Org A cannot access Org B leads/deals/opportunities/campaigns/conversations/messages/analytics/audit logs/recovery outcomes — both READ and WRITE paths
-- **RBAC:** OWNER full org access (org:manage, member:manage), ADMIN operational (lead:write, campaign:manage, import:run, audit:read), MEMBER normal workflow (lead:read/write, campaign:read, outcome:write) — `src/lib/roles.ts` hasPermission, canManageOrg, canDelete, canManageCampaigns, canImport — enforced server-side never only frontend hiding buttons
-- **Validation:** Zod on all inputs (registerSchema, loginSchema, import, outcome, campaign), file validation 10MB CSV/XLSX only, monetary values validated, dates validated, IDs validated
-- **Prompt Injection Defense:** Customer-provided text UNTRUSTED DATA treated as DATA not instructions, sanitize `src/lib/import/sanitize.ts` filters ignore previous instructions/reveal system prompt etc, slice 2000, AI prompts separate SYSTEM INSTRUCTIONS/TRUSTED BUSINESS DATA/UNTRUSTED CUSTOMER CONTENT, tests adversarial cases in security.test.ts and evaluate.ts injection cases
-- **Audit Log:** Events USER_REGISTERED/LOGIN/LOGOUT/IMPORT_STARTED/COMPLETED/LEAD_CREATED/UPDATED/OPPORTUNITY_VIEWED/AI_ANALYSIS_GENERATED/MESSAGE_GENERATED/CAMPAIGN_CREATED/UPDATED/RECOVERY_CONTACTED/OUTCOME_UPDATED/RECOVERY_CONFIRMED, orgId/userId/event/entity/timestamp/metadata no secrets, never breaks main flow, org-scoped
-- **Security Headers:** next.config.js headers X-Frame-Options DENY, X-Content-Type-Options nosniff, Referrer-Policy strict-origin-when-cross-origin, X-XSS-Protection 1; mode=block, Permissions-Policy camera=(), microphone=(), geolocation=(), CSP reviewed not breaking app
-- **CORS:** API routes check origin, allow same origin only, no credentials exposure
-- **Rate Limiting:** Structure in place, suggested 100 req/min per IP auth, 1000 api, implement via middleware/Upstash Redis, protect expensive operations AI generation/analysis/imports/auth
-- **Error Handling:** Understandable, actionable, safe, never stack traces/secrets to client, generic error messages, validation errors via Zod
-- **No Fake Claims:** No SOC2/ISO27001/GDPR certification claimed unless verified, no fake customer logos/testimonials/revenue case studies/performance stats, anti-bullshit rule REAL→show, MOCKED→clearly identify as demo/mock, NOT IMPLEMENTED→do not expose as if works, PARTIALLY→document
+### Schema Design
+- **Monetary fields**: `Decimal(15,2)` in Postgres to avoid float errors. Fallback uses REAL but converts via `validateMonetaryAmount` and `calculatePotentialRevenue` helpers that use integer arithmetic.
+- **Idempotency**: `Lead` and `Deal` have `externalId` + `provider` for CRM sync deduplication. Unique constraint on `(organizationId, externalId)`.
+- **Tenant isolation**: Every table has `organizationId` with index. Every query includes `organizationId`.
+- **Indexes**: Composite indexes for common queries:
+  - `Lead`: `(orgId, status)`, `(orgId, isDemo)`, `(orgId, createdAt)`, `(orgId, lastContactAt)`
+  - `RecoveryOpportunity`: `(orgId, status)`, `(orgId, category)`, `(orgId, score)`
+  - `CampaignLead`: `(orgId, campaignId)`, `(orgId, status)`
+  - `RecoveryEvent`: `(orgId, outcome)`, `(orgId, recoveredAt)`, `(orgId, createdAt)`
+  - `AuditLog`: `(orgId, event)`, `(orgId, createdAt)`
+  - `Integration`: `(orgId, provider)` unique
+  - `Subscription`: `stripeSubscriptionId` unique
+  - `Usage`: `(orgId, period)` unique for monthly accounting
 
-## AI
-- **Provider:** OpenAI gpt-4o-mini if OPENAI_API_KEY set, else deterministic mock fallback based on keywords (price, think, rejection, won) — ensures tests/demo work without API key
-- **Isolation:** `src/lib/ai/service.ts` isolates LLM calls, never in React components
-- **Analyst Contract:** Business data → Deterministic Engine (Recovery Engine 2.0) → Structured context → AI → Validated JSON (Zod) → Business-safe
-- **Output:** Structured JSON validated via Zod, fields leadStatus, buyingIntent, lossReason, recommendedAction, reasoningSummary, recommendedMessageGoal, confidence, missingInformation, plus recoveryScore, factors, businessReasons, probabilityReason, potentialRevenue, modelVersion, isMock
-- **Principles:** Never invent prices/discounts/deadlines/product details/customer statements/agreements/previous conversations/revenue/purchase intent, if missing info say "Not enough information to determine", use deterministic engine output as context, do not override deterministic financial calculations — system's financial calculations authoritative
-- **Message Generation:** Personalized recovery message using only available data, no invented prices, goal from recommendedMessageGoal, actions Regenerate/Edit/Copy/Mark Ready, clearly AI-generated Human approval required, no automatic sending unless real messaging provider verified
-- **Evaluation:** `src/lib/ai/evaluate.ts` 100 synthetic cases high-value/low-value/explicit intent/weak intent/rejection/cancellation/won/missing info/prompt injection/contradictory/long inactivity/no response/incomplete, measures valid structured output/hallucination violations/recommendation correctness/missing-data handling/message factuality, `npm run ai:evaluate` shows total/passed/failed/invalid JSON/hallucination violations, current 100% pass with mock AI (real LLM may need prompt tuning), never manufacture accuracy percentage
-- **Caching:** AI analysis cached in AIAnalysis table, reuse, avoid repeated AI calls, check existing before calling, do not cache across organizations incorrectly
+### Migrations
+- Located in `prisma/migrations/20250101_init/migration.sql`
+- Production: Run `npx prisma migrate deploy`
+- Development: Fallback auto-creates tables via `prisma-fallback.ts` with `CREATE TABLE IF NOT EXISTS` and migration ALTERs
 
-## CRM
-- **Abstraction:** `src/lib/crm/types.ts` interface CRMProvider getLeads/getDeals/getContacts/getActivities/sync/mapFields/isConfigured, types CRMLead/Deal/Contact/Activity, SyncResult
-- **Mock Provider:** `src/lib/crm/mock.ts` always available, sample data, for development/tests/documentation, clearly marked mock
-- **HubSpot READ-ONLY:** `src/lib/crm/hubspot.ts` requires HUBSPOT_API_KEY env, if not configured throws clear error "HubSpot not configured — set HUBSPOT_API_KEY", no fake live calls, no write operations, no auto-send, documents future API calls GET /crm/v3/objects/contacts/deals, mapping documented in code comments, TODOs for actual fetch implementation
-- **Factory:** `src/lib/crm/index.ts` getCRMProvider(name) returning mock/hubspot
-- **Security:** READ-ONLY in MVP, no automatic message sending, imported CRM data treated as DATA not instructions, tenant isolation scoped by orgId, no OAuth tokens insecurely, no secrets logged
-- **Future:** Add Pipedrive, AmoCRM providers, rate limiting, pagination, webhook incremental sync
-- **UI:** `/integrations` page shows provider status READY/NOT CONFIGURED, honest UI, no fake successful sync
+### Transactions
+- Use `prisma.$transaction` for multi-step writes (e.g., import creates lead + analysis + opportunity)
+- Fallback simulates transaction by executing sequentially - logs warning
+- Financial operations (outcome RECOVERED) use transaction to ensure event + opportunity + campaignLead + lead status updated atomically
 
-## Imports
-- **Experience 2.0:** 8 steps Upload → Detect columns → Map columns (AI suggestion Имя→name etc) → Preview sample rows → Validate (invalid email/phone/missing name/value/invalid date/duplicate) → Import (normalization, duplicate detection via phone/email, sanitization, audit log) → Analyze (Recovery Engine 2.0, probability breakdown, AI analysis, RecoveryOpportunity creation) → Results (Imported/Created/Updated/Duplicates/Skipped/Errors, PotentialRecoverableRevenue/Critical/High, CTA View Recovery Opportunities)
-- **Mapping:** `src/lib/import/mapping.ts` STANDARD_FIELDS, Russian mapping, heuristic
-- **Normalization:** `src/lib/import/normalization.ts` deal value formats, date parsing, phone normalization 8→7, email lowercasing, rawData preservation
-- **Duplicate:** `src/lib/import/duplicate.ts` phone/email duplicate detection, batch deduplication
-- **Parse:** `src/lib/import/parse.ts` CSV via papaparse, XLSX via xlsx, file validation 10MB, CSV/XLSX only, column detection
-- **Sanitize:** `src/lib/import/sanitize.ts` prompt injection patterns, slice 2000, treat as DATA
-- **Result:** Immediately calculate recovery metrics from real data, no hardcoded business metrics
-- **API:** `/api/import/parse` (POST file, returns columns/rows/suggestedMapping), `/api/import/confirm` (POST fileName/mapping/rows, returns imported/created/updated/duplicates/skipped/errors/analyzed/summary with potentialRecoverableRevenue/critical/high, creates RecoveryOpportunity, logs audit)
+### Backup & Recovery
+- **Postgres**: Daily pg_dump, WAL archiving, point-in-time recovery
+- **Retention**: 30 days daily, 12 months monthly
+- **Restore test**: Monthly restore to staging
+- **SQLite fallback**: File copy backup (not for production)
 
-## Deployment
-- **Platform:** Vercel or Docker
-- **Env Vars:** DATABASE_URL (postgres prod, file:./dev.db sandbox fallback), JWT_SECRET (32+ chars random), OPENAI_API_KEY (optional, mock fallback), OPENAI_MODEL (default gpt-4o-mini), HUBSPOT_API_KEY (optional), STRIPE_SECRET_KEY (optional, billing), NEXT_PUBLIC_APP_URL (optional for CORS/links) — never commit secrets, never expose server-side env to client unnecessarily, document in .env.example
-- **Build:** `npm run build` passes Next.js 14, `npm test` 43 tests, `npm run ai:evaluate` 100 cases, `npm run lint` passes
-- **Migrations:** `prisma migrate dev` for dev, `prisma migrate deploy` for prod, `prisma generate` for client (may need network for engine download, fallback to sqlite if fails)
-- **Headers:** via next.config.js
-- **Rate Limiting:** via middleware/Upstash, protect AI generation/analysis/imports/auth
-- **Logging:** AuditLog for business events no secrets, console logs for diagnostics (replace with PostHog in prod), never log passwords/tokens/API keys/full sensitive customer data unnecessarily, request failures/AI provider failures/CRM sync failures/import failures/database failures logged with context
-- **Health Check:** To add /api/health (future)
-- **Backups:** Daily DB backups in prod, retention documented
-- **Monitoring:** Request failures, AI provider failures, CRM sync failures, import failures, database failures — enough context to diagnose, no secrets
+## Authentication & Session Management
+
+### Implementation
+- **Password hashing**: bcrypt with 12 rounds (configurable via `BCRYPT_ROUNDS`)
+- **JWT**: HS256, 7 days expiry, issuer `onvyra`, audience `onvyra-app`, httpOnly cookie
+- **Cookie**: `httpOnly`, `secure` in production, `sameSite=lax`, path `/`
+- **Session validation**: `requireAuth()` checks JWT, `requireAuthWithMembership()` additionally checks org membership exists
+
+### Security
+- JWT secret min 32 chars, validated in production
+- No secrets in logs - all logging sanitizes sensitive keys
+- Rate limiting: login 10 per 15min per IP, register 5 per hour per IP
+- Tenant isolation: every API route checks `organizationId` from session, not from client
+
+### RBAC
+- **OWNER**: Full access including billing, team management, org deletion
+- **ADMIN**: Operational (campaigns, imports, integrations) but not billing
+- **MEMBER**: Workflow only (view inbox, update outcomes, generate messages)
+- Server-side enforcement via `requireRole()` and helper `isOwnerOrAdmin()`
+
+## Tenant Isolation & IDOR Prevention
+
+### Every Query Must Include orgId
+```ts
+// Correct
+prisma.lead.findFirst({ where: { id, organizationId: session.orgId } })
+
+// Wrong - vulnerable to IDOR
+prisma.lead.findFirst({ where: { id } })
+```
+
+### Tested Scenarios
+- Cross-tenant read: User A cannot fetch lead from Org B (returns 404)
+- Cross-tenant write: User A cannot update lead from Org B
+- Campaign isolation: campaignId validated belongs to orgId
+- Integration isolation: HubSpot tokens scoped per org
+
+### Audit
+- Search codebase for `findFirst`, `findUnique`, `update`, `delete` without `organizationId`
+- Tests in `src/tests/security.test.ts` verify IDOR protection
+
+## AI Provider - OpenAI
+
+### Production Hardening
+- **Timeout**: 30s default, configurable via `OPENAI_TIMEOUT_MS`, AbortController
+- **Retry**: 2 retries with exponential backoff for 429, 500, 502, 503, 504
+- **Rate limit handling**: Respects Retry-After header
+- **Cost control**: Token tracking per org, monthly limits (FREE 50k, PRO 500k, BUSINESS 5M)
+- **Caching**: In-memory cache per org, 1 hour TTL, max 1000 entries, LRU eviction. Production should use Redis.
+- **Structured outputs**: Zod validation for analysis and messages, prevents fabricated prices/discounts
+- **Mock fallback**: When `OPENAI_API_KEY` empty, uses deterministic mock (no fake revenue)
+
+### Data Safety
+- Imported customer content treated as DATA, not instructions
+- Prompt injection protection: sanitize `lastMessage`, `rawData` - replace "ignore previous instructions" with "[filtered]"
+- System prompt isolates TRUSTED (system) vs UNTRUSTED (user data)
+- No secrets in logs, no customer data in logs unless audit
+
+### Validation
+- `AIAnalysisSchema`: validates leadStatus, buyingIntent, lossReason, etc. - no invented values
+- `AIMessageSchema`: checks for forbidden patterns like "$X discount", "limited time", "expires"
+- If validation fails, falls back to mock but logs warning
+
+## CRM Integration - HubSpot
+
+### OAuth 2.0 Flow
+1. User clicks Connect -> server generates state via `generateOAuthState(orgId)` (HMAC SHA256 + timestamp)
+2. Store state in Integration metadata, redirect to `https://app.hubspot.com/oauth/authorize?client_id&redirect_uri&scope&state`
+3. Callback at `/api/integrations/hubspot/callback` verifies state via `verifyOAuthState()` - checks orgId, expiry 10min, HMAC
+4. Exchange code for tokens via `POST https://api.hubapi.com/oauth/v1/token`
+5. Encrypt tokens via `encryptToken()` (AES-256-GCM, IV + authTag + ciphertext) with `TOKEN_ENCRYPTION_KEY`
+6. Store encrypted in `Integration` table, status CONNECTED
+
+### Security
+- **CSRF**: State parameter with orgId + timestamp + random + HMAC
+- **Token encryption**: At rest via AES-256-GCM, key from `TOKEN_ENCRYPTION_KEY` env (32 bytes hex)
+- **No secrets in logs**: Access tokens never logged, only status
+- **READ-ONLY**: Scopes `crm.objects.contacts.read`, `crm.objects.deals.read`, `crm.objects.companies.read` only
+- **Rate limiting**: 5 sync per minute per org, respects HubSpot 429 with Retry-After
+- **401 handling**: Auto-refresh via refresh token, if fails -> require reconnect
+
+### Idempotency & Sync
+- **externalId**: `hubspot:contact:{id}` or `hubspot:deal:{id}` - unique per org
+- **Unique constraint**: `(organizationId, externalId)` prevents duplicates on re-sync
+- **Upsert**: Sync fetches contacts/deals, maps to Lead/Deal, creates if not exists, updates if exists
+- **Failure handling**: Partial sync allowed (contacts succeed, deals fail), errors stored in `lastSyncError`, never deletes existing data
+- **Pagination**: Handles HubSpot pagination (limit 100), respects rate limits
+
+### Billing
+- CRM integrations limited by plan: FREE 0, PRO 1, BUSINESS 5
+- Server-side enforcement in import and sync
+
+## Import Security
+
+### Validation
+- **File size**: Max 10MB (`MAX_FILE_SIZE_BYTES`)
+- **File type**: Only .csv, .xlsx, .xls, block dangerous mime types (application/x-msdownload, text/html)
+- **Row count**: Max 10k rows per import
+- **Column count**: Max 100 columns
+- **Cell length**: Max 10k chars, truncated if longer
+
+### Formula Injection Prevention
+- Detects `=`, `+`, `-` (if not negative number), `@`, `\t=`, `\r=`, `\n=` at start
+- Neutralizes by prefixing with single quote `'`
+- Allows negative numbers like `-123` or `-45.67`
+
+### Malicious Content
+- Blocks `<script`, `javascript:`, `vbscript:`, `onload=`, `onerror=`, `eval(`, `document.cookie`, `DDE(`
+- Replaces with `[removed]` and logs warning
+- Sanitizes headers: remove `<>"'`;`, max 200 chars, check duplicates and empty
+
+### Resource Limits
+- Buffer size check defense in depth
+- Row count validation before processing
+- Sanitization per row with warning count in summary
+
+## Billing - Stripe
+
+### Checkout
+- `POST /api/billing` creates checkout session via `StripeClient`
+- Requires `STRIPE_SECRET_KEY`, `STRIPE_PRO_PRICE_ID`, `STRIPE_BUSINESS_PRICE_ID`
+- Generates idempotency key: `orgId:operation:timestamp:random`
+- Metadata includes `organizationId`, `plan` for webhook
+- Success/cancel URLs from `NEXT_PUBLIC_APP_URL`
+
+### Webhook
+- `POST /api/billing/webhook` verifies signature via `verifyWebhookSignature()`
+- Parses `t=timestamp,v1=signature`, checks tolerance 5min, HMAC SHA256 with `timingSafeEqual`
+- Idempotency: checks `AuditLog` for existing event id, returns 200 if duplicate (prevents double processing)
+- Handles `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`
+- Updates `Organization.billingPlan`, `Subscription` table, logs audit
+- Returns 500 for transient failures to trigger Stripe retry, 200 for unhandled but valid events
+
+### Security
+- No secrets in logs, customer IDs partially masked (`cus_...` -> `cus_...`)
+- Webhook secret from `STRIPE_WEBHOOK_SECRET`
+- No fake payments: if Stripe not configured, shows "Billing integration not configured", allows dev manual upgrade only in non-production
+
+### Plan Enforcement
+- Server-side via `getOrganizationUsage()` + `checkSpecificLimit()` + `checkUsageLimit()`
+- Checks before import, AI analysis, campaign creation, CRM sync
+- Usage accounting: `Usage` table per org per period `YYYY-MM`, increments via `incrementUsage()` with transaction
+- Tracks `aiAnalyses`, `aiMessages`, `imports`, `leads`, `campaigns`, `tokensUsed`
+
+## Security Headers
+
+### Next.js Config
+- `X-Frame-Options: DENY`
+- `X-Content-Type-Options: nosniff`
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `X-XSS-Protection: 1; mode=block`
+- `Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()`
+- `Content-Security-Policy`: default-src 'self', script-src 'self' 'unsafe-eval' 'unsafe-inline' (needed for Next.js), style-src 'self' 'unsafe-inline', img-src 'self' data: blob: https:, connect-src 'self' https://api.openai.com https://api.hubapi.com https://api.stripe.com
+- `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` in production
+- API routes: `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`
+
+### CSRF
+- OAuth state parameter for HubSpot
+- For other mutations, rely on SameSite=lax cookies + origin check
+- Future: Add CSRF token for forms via `CSRF_SECRET`
+
+## Rate Limiting
+
+### In-Memory (Dev)
+- Map with count + resetAt, cleanup every 5min
+- Production should use Redis via `UPSTASH_REDIS_REST_URL`
+
+### Limits
+- AI: 20 per minute per org
+- AI evaluate: 100 per minute per org (batch)
+- Import parse: 10 per minute per org
+- Import confirm: 10 per minute per org
+- Auth login: 10 per 15min per IP
+- Auth register: 5 per hour per IP
+- CRM sync: 5 per minute per org
+- CRM fetch: 30 per minute per org
+- API default: 100 per minute per org
+
+### Headers
+- Returns `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
+
+## Observability & Logging
+
+### Logger
+- Structured JSON logs with timestamp, level, message, metadata
+- Sanitizes sensitive keys: password, token, secret, apiKey, authorization, etc. -> "[REDACTED]"
+- Levels: debug, info, warn, error, configurable via `LOG_LEVEL`
+- Production: info, development: debug
+
+### Specialized Loggers
+- `logger.audit(event, orgId, userId, metadata)`: for audit trail, also stored in DB
+- `logger.security(event, metadata)`: for security events (invalid OAuth state, invalid webhook sig)
+- `logger.performance(operation, durationMs, metadata)`: for slow queries (>1s)
+- `logger.billing(event, orgId, metadata)`: for billing events
+
+### What NOT to Log
+- Passwords, tokens, API keys, secrets, JWT contents, customer PII unless necessary
+- Full request bodies with sensitive data
+
+## Error Handling
+
+### API Routes
+- Use `sanitizeErrorForClient()` to prevent leaking internal errors
+- Known safe errors: "Invalid credentials", "Unauthorized", "Not found", etc. - returned as is
+- Unknown errors: logged server-side with full message, client gets "An internal error occurred"
+- Never expose stack traces, DB errors, or secrets
+
+### Import & CRM
+- Partial failures allowed, errors collected and returned in summary
+- Never throws away existing data on sync failure
+- Errors stored in `ImportJob.errors` (max 20) and `Integration.lastSyncError`
 
 ## Performance
-- **Queries:** Avoid N+1, use include, findMany with where orgId, indexes on orgId, email, phone, dealValue, recoveryScore, etc.
-- **Pagination:** Inbox 20, Leads 20, Audit 100, Dashboard analyses 10000 but limited (could be paginated further for 100k+), avoid loading thousands into browser at once
-- **Server/Client Boundaries:** Use server-side data access where appropriate, do not make every component client-side unnecessarily
-- **AI Requests:** Cache AI analysis in AIAnalysis table, reuse, avoid repeated AI calls, check existing before calling, do not cache across orgs incorrectly
-- **Import Processing:** Handles 10k leads, 10MB limit, normalization/duplicate detection efficient, no websocket progress yet acceptable
-- **Dashboard Aggregation:** Real calculations from DB, not hardcoded, potential revenue reduce sum, funnel from recovery events
-- **Tested:** With realistic demo dataset several hundred records, check Dashboard/Inbox/Search/Filtering/Pagination/Opportunity detail/Import/Analysis — no obvious performance problems
 
-## Financial Correctness
-- **Potential:** Deal Value × Probability, authoritative deterministic, handles null/zero/negative/invalid/currency, if only one currency supported explicit (₽)
-- **Confirmed:** Explicit recorded recovered amount with recoveredAt/source/campaign/user/notes, never potential=confirmed, never deal value=recovered automatically without user confirmation
-- **Aggregates:** Handle null/zero/negative/invalid, no silent currency mixing, only ₽ in current implementation explicit
-- **Principle:** Potential ≠ Confirmed enforced everywhere with disclaimers, separate cards, funnel, audit, UI labels "Estimated • Not guaranteed", "Attributed • Actual", "Potential ≠ Confirmed"
+### Database
+- Indexes for common queries (see Schema Design)
+- Pagination: inbox, leads, campaigns, analytics use `take`/`skip`, default 50, max 100
+- Avoid N+1: use `include` or batch fetch (e.g., existingLeads for dedup fetched once with take 10000, not per row)
+- Aggregation: dashboard uses counts and sums, not loading all records
 
-## API Quality
-- **Every Route Has:** Authentication (getSession), Authorization (role check via roles.ts), Tenant scope (orgId in where), Input validation (Zod), Predictable errors (generic messages, no stack traces), Safe responses (no secrets)
-- **Never Trust:** URL IDs (check orgId), query params (validate), request body (Zod), uploaded files (validate size/type), AI output (Zod), CRM data (treat as DATA)
-- **Routes Audited:** auth/register/login/logout, import/parse/confirm, demo/seed, campaigns, leads/[id]/outcome/regenerate, dashboard/inbox/leads/campaigns/analytics/integrations/billing/settings/audit/onboarding — all scoped
+### AI
+- Caching per org per lead, 1 hour TTL, prevents re-analyzing same lead
+- Batch analysis in import processes sequentially but could be parallelized with concurrency limit (future)
+- Token tracking for cost control
 
-## Known Limitations
-- Database SQLite fallback dev.db because Prisma engine download blocked in sandbox (binaries.prisma.sh TLS). Production should use PostgreSQL + Prisma (change provider, run migrations). Schema Postgres-ready.
-- Google Fonts next/font fetch fails in sandbox due to same TLS, replaced with system font stack. Production can re-enable Inter.
-- AI without OPENAI_API_KEY uses deterministic mock, good for demo/tests but not as nuanced as GPT-4o-mini. Mock gives 100% eval pass, real LLM may need prompt tuning.
-- CRM HubSpot READ-ONLY skeleton, requires env and implementation of actual fetch calls (TODOs documented). No fake live sync claimed.
-- Billing foundation only, no real Stripe integration unless STRIPE_SECRET_KEY set. Shows honest not configured, no fake payments.
-- Performance dashboard loads up to 10000 analyses, could be paginated further for 100k+ leads. Inbox 20, leads 20, audit 100.
-- Roles helper functions in src/lib/roles.ts, enforced in some routes, not yet every API (documented).
-- No real-time import progress websocket, shows importing/analyzing states, acceptable for 10k rows.
-- Campaign messages manual copy/export only, no auto-sending per spec.
-- No /api/health yet (future), no /api/metrics yet
-- Monetary values Float currently, should be Decimal in Postgres prod
+### Import
+- Parse file once, normalize, dedup batch, then process
+- Existing leads fetched once (take 10000) not per row
+- Progress via ImportJob status
 
-## Incident Considerations
-- **Cross-tenant leakage:** Check logs for orgId mismatches, audit log for suspicious access, immediate fix via adding orgId to query
-- **AI hallucination:** Check ai:evaluate, logs for invalid JSON, fallback to deterministic engine, never trust AI for financial calculations
-- **Prompt injection:** Check sanitize logs, ensure imported text filtered, AI prompts separated
-- **Database unavailable:** Error states show "Database unavailable" understandable actionable safe, no stack traces, logs for diagnosis
-- **Import failures:** Logs import failures with context, errors array in ImportJob, validation shows invalid rows
-- **CRM sync failures:** Logs CRM sync failures, shows honest status not configured, no fake success
-- **Rate limit abuse:** Implement rate limiting, logs, protect expensive operations
+## Deployment
 
-## Production Readiness Checklist
-- [x] Env vars documented in .env.example
-- [x] Auth secure (bcrypt, JWT httpOnly, SameSite, secure in prod, 7d)
-- [x] Tenant isolation enforced and tested
-- [x] RBAC OWNER/ADMIN/MEMBER
-- [x] Security headers
-- [x] Audit logging org-scoped no secrets
-- [x] Prompt injection defense
-- [x] Financial correctness Potential≠Confirmed
-- [x] No fake metrics/integrations/payments/logos/testimonials
-- [x] Build passes
-- [x] Tests pass (43)
-- [x] AI evaluation 100 cases 100% pass 0 hallucination
-- [x] Empty/loading/error states
-- [x] Responsive design
-- [x] Landing 2.0 polished
-- [x] Pricing honest
-- [x] Security page honest
-- [x] Billing foundation no fake payments
-- [x] Usage limits server-side
-- [x] Settings professional no settings that do nothing
-- [x] Onboarding flow
-- [x] Analytics real data only
-- [x] Integrations honest status
-- [x] Import Experience 2.0 8 steps
-- [x] Demo data realistic 500-1000 mix
-- [x] README comprehensive
-- [x] Production docs comprehensive
-- [ ] Postgres migration (currently SQLite fallback, ready for prod)
-- [ ] Real Stripe integration (currently foundation, honest not configured)
-- [ ] Real HubSpot fetch implementation (currently skeleton, honest not configured)
-- [ ] /api/health endpoint (future)
-- [ ] Rate limiting middleware implementation (currently suggested)
-- [ ] PostHog analytics (currently console + AuditLog)
+### Environment Variables
+- See `.env.example` for full list
+- Required: `DATABASE_URL`, `JWT_SECRET` (32+ chars)
+- Optional but recommended: `OPENAI_API_KEY`, `HUBSPOT_CLIENT_ID/SECRET`, `STRIPE_SECRET_KEY/WEBHOOK_SECRET`, `TOKEN_ENCRYPTION_KEY`
+
+### Build
+- `npm run build` must pass (24 routes)
+- `npm run lint` must pass (0 errors)
+- `npm test` must pass (43 tests)
+
+### Health Check
+- `GET /api/health` returns status, checks database, env, memory
+- Returns 200 if all ok, 503 if degraded
+- No auth required, but rate limited
+- Used by load balancer / Kubernetes liveness probe
+
+### Migrations
+- Production: `npx prisma migrate deploy` on deploy
+- Backup before migrate
+- Test migrations on staging first
+
+## Incident Response
+
+### Playbook
+1. **Database down**: Health check fails, alert, check Postgres logs, restore from backup if needed
+2. **High error rate**: Check logs for `logger.error`, identify failing component (AI, CRM, billing)
+3. **Rate limit abuse**: Check rate limit logs, block IP if needed, increase limits if legitimate
+4. **Security incident**: Check `logger.security`, revoke tokens, rotate secrets, audit `AuditLog`
+5. **Billing webhook failure**: Check Stripe dashboard, replay failed events, verify signature
+
+### Backups
+- Daily automated, tested monthly
+- Point-in-time recovery for Postgres
+- Encryption key backup separately (KMS)
+
+## Privacy & Data Handling
+
+### Customer Data
+- Imported leads treated as DATA, never as instructions
+- No customer data in logs unless audit event with orgId only
+- AI prompts include only necessary fields, not full rawData if too large (slice 1000 chars)
+
+### Retention
+- Audit logs retained 1 year
+- Import jobs retained 90 days
+- Usage records retained 2 years for billing
+
+### GDPR
+- User can request data export (leads, analyses, events)
+- User can request deletion (cascade deletes org data via FK)
+- Anonymize demo data not linked to real users
+
+## Checklist for Production Deploy
+
+- [ ] `DATABASE_URL` is postgres, not sqlite
+- [ ] `JWT_SECRET` 32+ chars, random, not default
+- [ ] `TOKEN_ENCRYPTION_KEY` set (32 bytes hex)
+- [ ] `OPENAI_API_KEY` set if using real AI (or mock allowed but document)
+- [ ] `HUBSPOT_CLIENT_ID/SECRET/REDIRECT_URI` set if using HubSpot
+- [ ] `STRIPE_SECRET_KEY/WEBHOOK_SECRET/PRICE_IDS` set if using billing
+- [ ] `NEXT_PUBLIC_APP_URL` set to production URL
+- [ ] `NODE_ENV=production`
+- [ ] Run `prisma migrate deploy`
+- [ ] Test `/api/health` returns 200
+- [ ] Test auth flow (register, login, org isolation)
+- [ ] Test import with small CSV
+- [ ] Test HubSpot OAuth if configured
+- [ ] Test Stripe webhook via Stripe CLI `stripe listen --forward-to localhost:3000/api/billing/webhook`
+- [ ] Verify security headers via `curl -I https://yourapp.com`
+- [ ] Verify rate limiting via repeated requests
+- [ ] Check logs no secrets
+- [ ] Backup configured
