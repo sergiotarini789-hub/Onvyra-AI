@@ -107,36 +107,38 @@ export default function LandingPage() {
         </div>
       </header>
 
-      {/* HERO — DARK — Premium Technical Intelligent */}
+      {/* HERO — DARK — Cinematic Expensive Calm Intelligent Powerful */}
       <section className="relative z-10 border-b border-white/[0.06] bg-[#0A0A0B] text-white overflow-hidden">
         <div className="absolute inset-0">
-          <div className="absolute inset-0 ambient-grid-dark opacity-40" />
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 h-[800px] w-[1200px] bg-[radial-gradient(60%_60%_at_50%_0%,rgba(255,255,255,0.06)_0%,transparent_70%)]" />
-          <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+          <div className="absolute inset-0 ambient-grid-dark opacity-[0.22]" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 h-[720px] w-[1080px] bg-[radial-gradient(55%_55%_at_50%_0%,rgba(255,255,255,0.045)_0%,transparent_72%)]" />
+          <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/[0.07] to-transparent" />
         </div>
 
-        <div className="relative mx-auto max-w-[1280px] px-6 lg:px-8 pt-[64px] md:pt-[96px] pb-[80px]">
+        <div className="relative mx-auto max-w-[1280px] px-6 lg:px-8 pt-[72px] md:pt-[104px] pb-[88px]">
           <div className="grid lg:grid-cols-[1.05fr_0.95fr] gap-[56px] lg:gap-[80px] items-start">
-            {/* Left — Product Story */}
+            {/* Left — Product Story — Editorial Premium */}
             <div className="pt-4">
               <div className={`transition-all duration-[800ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${heroVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
-                <div className="inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/[0.06] px-3.5 py-1.5 backdrop-blur">
-                  <span className="h-2 w-2 rounded-full bg-[#EF4444] animate-[pulse-subtle_2s_ease-in-out_infinite] shadow-[0_0_8px_rgba(239,68,68,0.4)]" />
-                  <span className="text-[11px] font-[650] tracking-[0.04em] text-white/70">ONVYRA • AI REVENUE RECOVERY ENGINE • LIVE</span>
+                <div className="inline-flex items-center gap-2.5 rounded-full border border-white/[0.09] bg-white/[0.05] px-3.5 py-1.5 backdrop-blur-[12px]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#EF4444]" />
+                  <span className="text-[10.5px] font-[700] tracking-[0.06em] text-white/60">ONVYRA • AI REVENUE RECOVERY ENGINE • LIVE</span>
+                  <span className="h-3 w-px bg-white/10 ml-1" />
+                  <span className="text-[10px] font-[600] tracking-[0.02em] text-white/40">Potential ≠ Confirmed</span>
                 </div>
               </div>
 
               <div className={`mt-8 transition-all duration-[800ms] ease-[cubic-bezier(0.16,1,0.3,1)] delay-100 ${heroVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
-                <h1 className="text-[44px] md:text-[56px] lg:text-[64px] font-[800] leading-[0.9] tracking-[-0.04em]">
+                <h1 className="text-[44px] md:text-[56px] lg:text-[64px] font-[800] leading-[0.88] tracking-[-0.045em]">
                   Find the customers<br />
-                  <span className="text-white/40">your business is</span><br />
-                  leaving behind.
+                  <span className="text-white/35 font-[750] tracking-[-0.04em]">your business is</span><br />
+                  <span className="tracking-[-0.045em]">leaving behind.</span>
                 </h1>
               </div>
 
               <div className={`mt-6 transition-all duration-[800ms] ease-[cubic-bezier(0.16,1,0.3,1)] delay-200 ${heroVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
-                <p className="max-w-[480px] text-[16px] leading-[1.6] tracking-[-0.01em] text-white/60">
-                  Onvyra analyzes your existing leads, customers and deals to identify recoverable revenue, explains <span className="font-[600] text-white">why each opportunity matters</span> and helps teams act on it.
+                <p className="max-w-[460px] text-[15px] leading-[1.65] tracking-[-0.015em] text-white/55">
+                  Onvyra identifies recoverable revenue inside your existing CRM and customer data, explains <span className="font-[600] text-white/90">why each opportunity matters</span> and shows your team who to contact first.
                 </p>
               </div>
 
