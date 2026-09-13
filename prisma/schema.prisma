@@ -1,0 +1,302 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum MemberRole {
+  ADMIN
+  MEMBER
+  OWNER
+}
+
+enum LeadStatus {
+  new
+  contacted
+  qualified
+  stalled
+  won
+  lost
+  cancelled
+  rejected
+}
+
+enum BuyingIntent {
+  low
+  medium
+  high
+  unknown
+}
+
+enum LossReason {
+  no_follow_up
+  no_response
+  price
+  competitor
+  timing
+  not_interested
+  insufficient_data
+  already_won
+  rejected
+  cancelled
+  other
+  unknown
+}
+
+enum ConfidenceLevel {
+  low
+  medium
+  high
+}
+
+enum CampaignLeadStatus {
+  selected
+  messageGenerated
+  contacted
+  response
+  outcome
+}
+
+enum RecoveryOutcome {
+  no_response
+  responded
+  interested
+  negotiation
+  won
+  lost
+  not_interested
+}
+
+enum ImportStatus {
+  pending
+  processing
+  completed
+  failed
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  memberships  OrganizationMember[]
+}
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  members     OrganizationMember[]
+  leads       Lead[]
+  campaigns   Campaign[]
+  importJobs  ImportJob[]
+  conversations Conversation[]
+  deals       Deal[]
+  aiAnalyses  AIAnalysis[]
+  recoveryEvents RecoveryEvent[]
+  campaignLeads CampaignLead[]
+
+  @@index([slug])
+}
+
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  userId         String
+  organizationId String
+  role           MemberRole   @default(MEMBER)
+  createdAt      DateTime     @default(now())
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model Lead {
+  id              String   @id @default(cuid())
+  organizationId  String
+  name            String?
+  phone           String?
+  email           String?
+  company         String?
+  manager         String?
+  product         String?
+  dealValue       Float? 
+  dealStage       String?
+  status          String?  @default("new")
+  lastContactAt   DateTime?
+  source          String?
+  rawData         String?  // JSON string
+  lastMessage     String?
+  isDemo          Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversations   Conversation[]
+  deals           Deal[]
+  aiAnalyses      AIAnalysis[]
+  campaignLeads   CampaignLead[]
+  recoveryEvents  RecoveryEvent[]
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([organizationId, isDemo])
+  @@index([email])
+  @@index([phone])
+  @@index([dealValue])
+  @@index([lastContactAt])
+}
+
+model Conversation {
+  id             String   @id @default(cuid())
+  organizationId String
+  leadId         String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead           Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  messages       Message[]
+
+  @@index([organizationId])
+  @@index([leadId])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  role           String   // user, customer, assistant, system
+  content        String
+  createdAt      DateTime @default(now())
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+}
+
+model Deal {
+  id             String   @id @default(cuid())
+  organizationId String
+  leadId         String?
+  title          String?
+  value          Float?
+  stage          String?
+  status         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead           Lead? @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([leadId])
+}
+
+model AIAnalysis {
+  id                     String   @id @default(cuid())
+  organizationId         String
+  leadId                 String
+  leadStatus             String
+  buyingIntent           String
+  lossReason             String
+  recoveryScore          Int
+  recoveryProbability    Float?
+  confidence             String
+  recommendedAction      String
+  reasoningSummary       String
+  recommendedMessageGoal String?
+  generatedMessage       String?
+  modelVersion           String   @default("v1")
+  createdAt              DateTime @default(now())
+
+  organization           Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead                   Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([leadId])
+  @@index([recoveryScore])
+  @@index([confidence])
+}
+
+model Campaign {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  status         String   @default("draft")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  campaignLeads  CampaignLead[]
+
+  @@index([organizationId])
+}
+
+model CampaignLead {
+  id             String   @id @default(cuid())
+  organizationId String
+  campaignId     String
+  leadId         String
+  status         String   @default("selected")
+  messageGenerated String?
+  contactedAt    DateTime?
+  response       String?
+  outcome        String?
+  revenue        Float?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  campaign       Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  lead           Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, leadId])
+  @@index([organizationId])
+  @@index([campaignId])
+  @@index([leadId])
+}
+
+model RecoveryEvent {
+  id             String   @id @default(cuid())
+  organizationId String
+  leadId         String
+  type           String?
+  outcome        String
+  revenue        Float?
+  note           String?
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead           Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([leadId])
+  @@index([outcome])
+}
+
+model ImportJob {
+  id             String   @id @default(cuid())
+  organizationId String
+  fileName       String
+  status         String   @default("pending")
+  totalRows      Int      @default(0)
+  processedRows  Int      @default(0)
+  errors         String?  // JSON
+  mapping        String?  // JSON
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
