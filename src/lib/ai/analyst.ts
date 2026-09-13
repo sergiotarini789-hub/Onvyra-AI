@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { aiService } from "./service";
-import { calculateRecoveryScore } from "../recovery/score";
+import { calculateRecoveryScore, ScoreFactor } from "../recovery/score";
 import { calculateRecoveryProbability } from "../recovery/probability";
 import { calculatePotentialRecoverableRevenue } from "../recovery/revenue";
 
@@ -24,19 +24,26 @@ export const AIAnalysisSchema = z.object({
   recommendedAction: z.enum(["follow_up_now", "follow_up_later", "no_action", "qualify", "nurture"]),
   reasoningSummary: z.string().min(10).max(500),
   recommendedMessageGoal: z.string().min(5).max(300),
+  confidence: z.number().min(0).max(1).optional(),
+  missingInformation: z.array(z.string()).optional(),
 });
 
 export type AIAnalysisOutput = z.infer<typeof AIAnalysisSchema>;
 
-export type FullAnalysisResult = AIAnalysisOutput & {
+export type FullAnalysisResult = Omit<AIAnalysisOutput, "confidence"> & {
   recoveryScore: number;
   scoreReasons: string[];
   scoreCategory: "critical" | "high" | "medium" | "low";
+  factors: ScoreFactor[];
+  businessReasons: string[];
   recoveryProbability: number | null;
   confidence: "low" | "medium" | "high";
+  probabilityReason: string;
   potentialRevenue: number | null;
   modelVersion: string;
   isMock: boolean;
+  aiConfidence?: number;
+  missingInformation?: string[];
 };
 
 export async function analyzeLeadWithAI(leadData: {
@@ -50,10 +57,8 @@ export async function analyzeLeadWithAI(leadData: {
   lastMessage?: string | null;
   rawData?: any;
 }): Promise<FullAnalysisResult> {
-  // Step 1: deterministic score
   const scoring = calculateRecoveryScore(leadData);
 
-  // Step 2: AI analysis
   let aiParsed: AIAnalysisOutput | null = null;
   let modelVersion = "v1";
   let isMock = false;
@@ -71,7 +76,6 @@ export async function analyzeLeadWithAI(leadData: {
     } catch (e) {
       retries--;
       if (retries < 0) {
-        // fallback deterministic analysis based on score
         aiParsed = fallbackAnalysis(leadData, scoring.score);
         modelVersion = "fallback-v1";
         isMock = true;
@@ -79,11 +83,8 @@ export async function analyzeLeadWithAI(leadData: {
     }
   }
 
-  if (!aiParsed) {
-    aiParsed = fallbackAnalysis(leadData, scoring.score);
-  }
+  if (!aiParsed) aiParsed = fallbackAnalysis(leadData, scoring.score);
 
-  // Step 3: probability
   const probResult = calculateRecoveryProbability({
     ...leadData,
     recoveryScore: scoring.score,
@@ -91,22 +92,31 @@ export async function analyzeLeadWithAI(leadData: {
     hasAIAnalysis: true,
   });
 
-  // Step 4: revenue
   const potentialRevenue = calculatePotentialRecoverableRevenue({
     dealValue: leadData.dealValue,
     recoveryProbability: probResult.probability,
   });
 
+  // Determine confidence level from probResult
+  const confidenceLevel = probResult.confidence;
+
+  const { confidence: aiConf, ...restParsed } = aiParsed;
+
   return {
-    ...aiParsed,
+    ...restParsed,
     recoveryScore: scoring.score,
     scoreReasons: scoring.reasons,
     scoreCategory: scoring.category,
+    factors: scoring.factors,
+    businessReasons: scoring.businessReasons,
     recoveryProbability: probResult.probability,
-    confidence: probResult.confidence,
+    confidence: confidenceLevel,
+    probabilityReason: probResult.reason,
     potentialRevenue,
     modelVersion,
     isMock,
+    aiConfidence: aiConf,
+    missingInformation: aiParsed.missingInformation,
   };
 }
 
@@ -120,6 +130,8 @@ function fallbackAnalysis(leadData: any, score: number): AIAnalysisOutput {
       recommendedAction: "no_action",
       reasoningSummary: "Deal already marked as won, no recovery needed.",
       recommendedMessageGoal: "No action needed.",
+      confidence: 0.9,
+      missingInformation: [],
     };
   }
   if (status.includes("reject")) {
@@ -130,6 +142,8 @@ function fallbackAnalysis(leadData: any, score: number): AIAnalysisOutput {
       recommendedAction: "no_action",
       reasoningSummary: "Customer explicitly rejected the offer.",
       recommendedMessageGoal: "No action needed.",
+      confidence: 0.8,
+      missingInformation: [],
     };
   }
   if (score >= 60) {
@@ -140,6 +154,8 @@ function fallbackAnalysis(leadData: any, score: number): AIAnalysisOutput {
       recommendedAction: "follow_up_now",
       reasoningSummary: "High commercial intent detected but no follow-up after meaningful interaction.",
       recommendedMessageGoal: "Reopen conversation without pressure.",
+      confidence: 0.75,
+      missingInformation: [],
     };
   }
   return {
@@ -149,5 +165,7 @@ function fallbackAnalysis(leadData: any, score: number): AIAnalysisOutput {
     recommendedAction: "follow_up_later",
     reasoningSummary: "Lead shows some interest but insufficient recent activity.",
     recommendedMessageGoal: "Gentle check-in.",
+    confidence: 0.5,
+    missingInformation: ["last contact date", "deal value"],
   };
 }

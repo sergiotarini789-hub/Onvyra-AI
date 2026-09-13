@@ -68,6 +68,15 @@ enum RecoveryOutcome {
   won
   lost
   not_interested
+  CONTACTED
+  REPLIED
+  INTERESTED
+  NEGOTIATING
+  RECOVERED
+  REJECTED
+  NO_RESPONSE
+  CANCELLED
+  NOT_RECOVERABLE
 }
 
 enum ImportStatus {
@@ -75,6 +84,30 @@ enum ImportStatus {
   processing
   completed
   failed
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum AuditEventType {
+  USER_REGISTERED
+  USER_LOGIN
+  IMPORT_STARTED
+  IMPORT_COMPLETED
+  LEAD_CREATED
+  LEAD_UPDATED
+  CAMPAIGN_CREATED
+  MESSAGE_GENERATED
+  RECOVERY_CONTACTED
+  RECOVERY_OUTCOME_UPDATED
+  RECOVERY_CONFIRMED
+  RECOVERY_OPPORTUNITY_VIEWED
+  AI_RECOMMENDATION_GENERATED
+  RECOVERY_INBOX_VIEWED
 }
 
 model User {
@@ -85,6 +118,9 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   memberships  OrganizationMember[]
+  auditLogs    AuditLog[]
+  campaignsCreated Campaign[] @relation("CampaignCreator")
+  recoveryEvents RecoveryEvent[]
 }
 
 model Organization {
@@ -102,6 +138,8 @@ model Organization {
   aiAnalyses  AIAnalysis[]
   recoveryEvents RecoveryEvent[]
   campaignLeads CampaignLead[]
+  recoveryOpportunities RecoveryOpportunity[]
+  auditLogs   AuditLog[]
 
   @@index([slug])
 }
@@ -146,6 +184,7 @@ model Lead {
   aiAnalyses      AIAnalysis[]
   campaignLeads   CampaignLead[]
   recoveryEvents  RecoveryEvent[]
+  recoveryOpportunities RecoveryOpportunity[]
 
   @@index([organizationId])
   @@index([organizationId, status])
@@ -216,6 +255,8 @@ model AIAnalysis {
   recommendedMessageGoal String?
   generatedMessage       String?
   modelVersion           String   @default("v1")
+  factors                String?  // JSON array of explainable factors
+  missingInformation     String?  // JSON array
   createdAt              DateTime @default(now())
 
   organization           Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -227,19 +268,52 @@ model AIAnalysis {
   @@index([confidence])
 }
 
+model RecoveryOpportunity {
+  id                     String   @id @default(cuid())
+  organizationId         String
+  leadId                 String
+  dealId                 String?
+  score                  Int
+  category               String   // CRITICAL, HIGH, MEDIUM, LOW
+  probability            Float?
+  confidence             String
+  potentialRevenue       Float?
+  status                 String   @default("open") // open, contacted, replied, recovered, lost, not_recoverable
+  factors                String?  // JSON
+  reasoningSummary       String?
+  recommendedAction      String?
+  lastContactAt          DateTime?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  organization           Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead                   Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  deal                   Deal? @relation(fields: [dealId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([leadId])
+  @@index([score])
+  @@index([status])
+  @@index([category])
+}
+
 model Campaign {
   id             String   @id @default(cuid())
   organizationId String
   name           String
   description    String?
-  status         String   @default("draft")
+  status         String   @default("draft") // DRAFT, ACTIVE, PAUSED, COMPLETED
+  targetCriteria String?  // JSON
+  createdById    String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User? @relation("CampaignCreator", fields: [createdById], references: [id], onDelete: SetNull)
   campaignLeads  CampaignLead[]
 
   @@index([organizationId])
+  @@index([status])
 }
 
 model CampaignLead {
@@ -249,6 +323,8 @@ model CampaignLead {
   leadId         String
   status         String   @default("selected")
   messageGenerated String?
+  messageEdited  String?
+  messageStatus  String?  @default("pending") // pending, ready, sent, manual_required
   contactedAt    DateTime?
   response       String?
   outcome        String?
@@ -264,24 +340,33 @@ model CampaignLead {
   @@index([organizationId])
   @@index([campaignId])
   @@index([leadId])
+  @@index([status])
 }
 
 model RecoveryEvent {
   id             String   @id @default(cuid())
   organizationId String
   leadId         String
+  opportunityId  String?
+  campaignId     String?
+  userId         String?
   type           String?
   outcome        String
   revenue        Float?
+  recoveredAt    DateTime?
+  source         String?
   note           String?
   createdAt      DateTime @default(now())
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   lead           Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  user           User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([organizationId])
   @@index([leadId])
   @@index([outcome])
+  @@index([campaignId])
+  @@index([recoveredAt])
 }
 
 model ImportJob {
@@ -291,12 +376,38 @@ model ImportJob {
   status         String   @default("pending")
   totalRows      Int      @default(0)
   processedRows  Int      @default(0)
+  createdCount   Int      @default(0)
+  updatedCount   Int      @default(0)
+  duplicateCount Int      @default(0)
+  skippedCount   Int      @default(0)
+  errorCount     Int      @default(0)
   errors         String?  // JSON
   mapping        String?  // JSON
+  summary        String?  // JSON with business value
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?
+  event          String
+  entityType     String?
+  entityId       String?
+  metadata       String?  // JSON
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([event])
+  @@index([entityType])
+  @@index([createdAt])
 }

@@ -6,6 +6,19 @@ import { deduplicateBatch, isDuplicateLead } from "@/lib/import/duplicate";
 import { analyzeLeadWithAI } from "@/lib/ai/analyst";
 import { generateFollowUpMessage } from "@/lib/ai/message";
 import { importMappingSchema } from "@/lib/validation";
+import { logAudit } from "@/lib/audit";
+import { getScoreCategory } from "@/lib/recovery/score";
+
+function sanitizeText(text: string): string {
+  // Treat imported text as DATA, not instructions - strip potential prompt injection
+  if (!text) return text;
+  // Remove common prompt injection patterns, but keep as data
+  return text
+    .replace(/ignore previous instructions/gi, "[filtered]")
+    .replace(/reveal system prompt/gi, "[filtered]")
+    .replace(/system prompt/gi, "[filtered]")
+    .slice(0, 2000); // limit length
+}
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -21,7 +34,14 @@ export async function POST(req: NextRequest) {
 
     if (rows.length > 10000) return NextResponse.json({ error: "Too many rows" }, { status: 400 });
 
-    // Create import job
+    await logAudit({
+      organizationId: session.organizationId,
+      userId: session.userId,
+      event: "IMPORT_STARTED",
+      entityType: "ImportJob",
+      metadata: { fileName, totalRows: rows.length },
+    });
+
     const importJob = await prisma.importJob.create({
       data: {
         organizationId: session.organizationId,
@@ -32,13 +52,10 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Normalize
     const normalized = normalizeRows(rows, mapping);
 
-    // Deduplicate within batch
     const { unique, duplicates: batchDups } = deduplicateBatch(normalized);
 
-    // Check against existing leads in DB
     const existingLeads = await prisma.lead.findMany({
       where: { organizationId: session.organizationId },
       select: { id: true, phone: true, email: true, name: true, company: true },
@@ -55,11 +72,17 @@ export async function POST(req: NextRequest) {
 
     let importedCount = 0;
     let analyzedCount = 0;
+    let criticalCount = 0;
+    let highCount = 0;
+    let totalPotential = 0;
     const errors: string[] = [];
 
-    // Import in batches
     for (const leadData of toImport) {
       try {
+        // Sanitize text fields to prevent prompt injection
+        const sanitizedLastMessage = leadData.lastMessage ? sanitizeText(leadData.lastMessage) : null;
+        const sanitizedRawData = leadData.rawData ? sanitizeText(leadData.rawData) : null;
+
         const lead = await prisma.lead.create({
           data: {
             organizationId: session.organizationId,
@@ -74,12 +97,20 @@ export async function POST(req: NextRequest) {
             status: leadData.status || "new",
             lastContactAt: leadData.lastContactAt,
             source: leadData.source,
-            lastMessage: leadData.lastMessage,
-            rawData: leadData.rawData,
+            lastMessage: sanitizedLastMessage,
+            rawData: sanitizedRawData || leadData.rawData,
           },
         });
 
-        // AI analysis
+        await logAudit({
+          organizationId: session.organizationId,
+          userId: session.userId,
+          event: "LEAD_CREATED",
+          entityType: "Lead",
+          entityId: lead.id,
+          metadata: { source: "import", fileName },
+        });
+
         try {
           const analysis = await analyzeLeadWithAI({
             id: lead.id,
@@ -116,7 +147,7 @@ export async function POST(req: NextRequest) {
             console.warn("message generation failed", e);
           }
 
-          await prisma.aIAnalysis.create({
+          const aiAnalysis = await prisma.aIAnalysis.create({
             data: {
               organizationId: session.organizationId,
               leadId: lead.id,
@@ -131,8 +162,38 @@ export async function POST(req: NextRequest) {
               recommendedMessageGoal: analysis.recommendedMessageGoal,
               generatedMessage,
               modelVersion: analysis.modelVersion,
+              factors: analysis.scoreReasons ? analysis.scoreReasons : analysis.factors ? JSON.stringify(analysis.factors) : null,
+              missingInformation: null,
             },
           });
+
+          // Create RecoveryOpportunity for inbox
+          const category = getScoreCategory(analysis.recoveryScore);
+          const potentialRevenue = lead.dealValue && analysis.recoveryProbability ? lead.dealValue * analysis.recoveryProbability : null;
+          if (potentialRevenue) totalPotential += potentialRevenue;
+          if (analysis.recoveryScore >= 80) criticalCount++;
+          else if (analysis.recoveryScore >= 60) highCount++;
+
+          try {
+            await prisma.recoveryOpportunity.create({
+              data: {
+                organizationId: session.organizationId,
+                leadId: lead.id,
+                score: analysis.recoveryScore,
+                category: category.toUpperCase(),
+                probability: analysis.recoveryProbability,
+                confidence: analysis.confidence,
+                potentialRevenue,
+                status: "open",
+                factors: analysis.factors ? JSON.stringify(analysis.factors) : JSON.stringify(analysis.scoreReasons || []),
+                reasoningSummary: analysis.reasoningSummary,
+                recommendedAction: analysis.recommendedAction,
+                lastContactAt: lead.lastContactAt,
+              },
+            });
+          } catch (e) {
+            console.warn("recoveryOpportunity create failed", e);
+          }
 
           analyzedCount++;
         } catch (e: any) {
@@ -146,21 +207,52 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const duplicateCount = batchDups.length + existingDups.length;
+    const summary = {
+      imported: importedCount,
+      created: importedCount,
+      updated: 0,
+      duplicates: duplicateCount,
+      skipped: rows.length - importedCount - duplicateCount,
+      errors: errors.length,
+      potentialRecoverableRevenue: Math.round(totalPotential),
+      criticalOpportunities: criticalCount,
+      highOpportunities: highCount,
+    };
+
     await prisma.importJob.update({
       where: { id: importJob.id },
       data: {
         status: "completed",
         processedRows: importedCount,
+        createdCount: importedCount,
+        duplicateCount,
+        skippedCount: summary.skipped,
+        errorCount: errors.length,
         errors: JSON.stringify(errors.slice(0, 20)),
+        summary,
       },
+    });
+
+    await logAudit({
+      organizationId: session.organizationId,
+      userId: session.userId,
+      event: "IMPORT_COMPLETED",
+      entityType: "ImportJob",
+      entityId: importJob.id,
+      metadata: summary,
     });
 
     return NextResponse.json({
       imported: importedCount,
-      duplicates: batchDups.length + existingDups.length,
+      created: importedCount,
+      updated: 0,
+      duplicates: duplicateCount,
+      skipped: summary.skipped,
       analyzed: analyzedCount,
       errors,
       importJobId: importJob.id,
+      summary,
     });
   } catch (e: any) {
     console.error("import confirm error", e);

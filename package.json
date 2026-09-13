@@ -11,7 +11,9 @@
     "test:watch": "vitest",
     "prisma:generate": "prisma generate || echo 'prisma generate failed, using fallback sqlite'",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "tsx prisma/seed.ts"
+    "prisma:seed": "tsx prisma/seed.ts",
+    "ai:evaluate": "tsx src/lib/ai/evaluate-cli.ts",
+    "ai:evaluate:watch": "tsx src/lib/ai/evaluate-cli.ts --watch"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

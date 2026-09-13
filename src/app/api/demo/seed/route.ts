@@ -5,6 +5,8 @@ import { generateDemoLeads } from "@/lib/demo/data";
 import { analyzeLeadWithAI } from "@/lib/ai/analyst";
 import { generateFollowUpMessage } from "@/lib/ai/message";
 import { hashPassword, createSession, setSessionCookie } from "@/lib/auth";
+import { logAudit } from "@/lib/audit";
+import { getScoreCategory } from "@/lib/recovery/score";
 
 function slugify(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "").slice(0, 30) + "-" + Math.random().toString(36).slice(2, 6);
@@ -16,7 +18,6 @@ export async function POST(req: NextRequest) {
     let orgId: string;
 
     if (!session) {
-      // Create demo user and org if no session
       const email = "demo@onvyra.ai";
       const existingUser = await prisma.user.findUnique({ where: { email }, include: { memberships: true } });
       if (existingUser && existingUser.memberships[0]) {
@@ -49,13 +50,11 @@ export async function POST(req: NextRequest) {
       orgId = session.organizationId;
     }
 
-    // Check if demo data already exists
     const existingDemoCount = await prisma.lead.count({ where: { organizationId: orgId, isDemo: true } });
     if (existingDemoCount >= 900) {
       return NextResponse.json({ success: true, message: "Demo data already seeded", count: existingDemoCount });
     }
 
-    // Clear existing demo if partial
     if (existingDemoCount > 0) {
       await prisma.lead.deleteMany({ where: { organizationId: orgId, isDemo: true } });
     }
@@ -135,13 +134,43 @@ export async function POST(req: NextRequest) {
             recommendedMessageGoal: analysis.recommendedMessageGoal,
             generatedMessage: genMsg,
             modelVersion: analysis.modelVersion,
+            factors: analysis.factors ? JSON.stringify(analysis.factors) : JSON.stringify(analysis.scoreReasons || []),
           },
         });
+
+        try {
+          const category = getScoreCategory(analysis.recoveryScore);
+          const potentialRevenue = lead.dealValue && analysis.recoveryProbability ? lead.dealValue * analysis.recoveryProbability : null;
+          await prisma.recoveryOpportunity.create({
+            data: {
+              organizationId: orgId,
+              leadId: lead.id,
+              score: analysis.recoveryScore,
+              category: category.toUpperCase(),
+              probability: analysis.recoveryProbability,
+              confidence: analysis.confidence,
+              potentialRevenue,
+              status: "open",
+              factors: analysis.factors ? JSON.stringify(analysis.factors) : JSON.stringify(analysis.scoreReasons || []),
+              reasoningSummary: analysis.reasoningSummary,
+              recommendedAction: analysis.recommendedAction,
+              lastContactAt: lead.lastContactAt,
+            },
+          });
+        } catch {}
+
         analyzed++;
       } catch (e) {
         console.error("demo analysis failed", e);
       }
     }
+
+    await logAudit({
+      organizationId: orgId,
+      userId: session.userId,
+      event: "DEMO_SEEDED",
+      metadata: { imported, analyzed },
+    });
 
     return NextResponse.json({ success: true, imported, analyzed });
   } catch (e: any) {
@@ -154,5 +183,10 @@ export async function DELETE(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   await prisma.lead.deleteMany({ where: { organizationId: session.organizationId, isDemo: true } });
+  await logAudit({
+    organizationId: session.organizationId,
+    userId: session.userId,
+    event: "DEMO_CLEARED",
+  });
   return NextResponse.json({ success: true });
 }
