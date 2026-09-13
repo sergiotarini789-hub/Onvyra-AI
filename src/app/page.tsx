@@ -83,7 +83,7 @@ export default function LandingPage() {
 
       {/* Header — Premium Technical */}
       <header className="sticky top-0 z-50 w-full border-b border-white/[0.08] bg-[#0A0A0B]/90 backdrop-blur-[20px]">
-        <div className="mx-auto flex h-[56px] max-w-[1280px] items-center justify-between px-6 lg:px-8">
+        <div className="mx-auto flex h-[56px] max-w-[1360px] items-center justify-between px-6 lg:px-[32px]">
           <div className="flex items-center gap-7">
             <Link href="/" className="flex items-center gap-2.5 group">
               <div className="h-[28px] w-[28px] rounded-[8px] bg-white text-[#0A0A0B] flex items-center justify-center font-[800] text-[13px] tracking-[-0.02em] shadow-[0_1px_2px_rgba(255,255,255,0.1)] group-hover:shadow-[0_2px_8px_rgba(255,255,255,0.15)] transition-all">O</div>
@@ -107,130 +107,123 @@ export default function LandingPage() {
         </div>
       </header>
 
-      {/* HERO — DARK — Cinematic Expensive Calm Intelligent Powerful */}
+      {/* HERO — DARK — Powerful Product-First — 1360px asymmetric 560+640 tension */}
       <section className="relative z-10 border-b border-white/[0.06] bg-[#0A0A0B] text-white overflow-hidden">
         <div className="absolute inset-0">
-          <div className="absolute inset-0 ambient-grid-dark opacity-[0.22]" />
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 h-[720px] w-[1080px] bg-[radial-gradient(55%_55%_at_50%_0%,rgba(255,255,255,0.045)_0%,transparent_72%)]" />
-          <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/[0.07] to-transparent" />
+          <div className="absolute inset-0 opacity-[0.018]" style={{ backgroundImage: `linear-gradient(#FFFFFF 1px, transparent 1px), linear-gradient(90deg, #FFFFFF 1px, transparent 1px)`, backgroundSize: '48px 48px' }} />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 h-[820px] w-[1280px] bg-[radial-gradient(60%_55%_at_50%_0%,rgba(255,255,255,0.038)_0%,rgba(255,255,255,0.012)_38%,transparent_72%)]" />
+          <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
+          <div className="absolute top-[56px] left-0 right-0 h-px bg-white/[0.04]" />
         </div>
 
-        <div className="relative mx-auto max-w-[1280px] px-6 lg:px-8 pt-[72px] md:pt-[104px] pb-[88px]">
-          <div className="grid lg:grid-cols-[1.05fr_0.95fr] gap-[56px] lg:gap-[80px] items-start">
-            {/* Left — Product Story — Editorial Premium */}
-            <div className="pt-4">
+        <div className="relative mx-auto max-w-[1360px] px-6 lg:px-[32px] pt-[88px] md:pt-[112px] pb-[96px]">
+          {/* Asymmetric: left 560 editorial, right 640 product dominant, gap 64 tension */}
+          <div className="grid lg:grid-cols-[560px_640px] justify-between gap-[48px] lg:gap-[64px] items-start">
+            {/* Left — Editorial — Strong Left Alignment — Wider Text Block */}
+            <div className="pt-2">
               <div className={`transition-all duration-[800ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${heroVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
-                <div className="inline-flex items-center gap-2.5 rounded-full border border-white/[0.09] bg-white/[0.05] px-3.5 py-1.5 backdrop-blur-[12px]">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#EF4444]" />
-                  <span className="text-[10.5px] font-[700] tracking-[0.06em] text-white/60">ONVYRA • AI REVENUE RECOVERY ENGINE • LIVE</span>
-                  <span className="h-3 w-px bg-white/10 ml-1" />
-                  <span className="text-[10px] font-[600] tracking-[0.02em] text-white/40">Potential ≠ Confirmed</span>
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1 backdrop-blur-[8px]">
+                  <span className="h-1 w-1 rounded-full bg-[#EF4444]" />
+                  <span className="text-[10px] font-[700] tracking-[0.06em] text-white/55">ONVYRA OS • REVENUE RECOVERY ENGINE</span>
+                  <span className="h-2.5 w-px bg-white/10 ml-1" />
+                  <span className="text-[9.5px] font-[600] tracking-[0.04em] text-white/35">LIVE • Potential ≠ Confirmed</span>
                 </div>
               </div>
 
-              <div className={`mt-8 transition-all duration-[800ms] ease-[cubic-bezier(0.16,1,0.3,1)] delay-100 ${heroVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
-                <h1 className="text-[44px] md:text-[56px] lg:text-[64px] font-[800] leading-[0.88] tracking-[-0.045em]">
-                  Find the customers<br />
-                  <span className="text-white/35 font-[750] tracking-[-0.04em]">your business is</span><br />
-                  <span className="tracking-[-0.045em]">leaving behind.</span>
+              <div className={`mt-10 transition-all duration-[800ms] ease-[cubic-bezier(0.16,1,0.3,1)] delay-100 ${heroVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
+                <h1 className="max-w-[600px] text-[52px] md:text-[64px] lg:text-[72px] font-[800] leading-[0.88] tracking-[-0.05em]">
+                  <span className="block">Find the customers</span>
+                  <span className="block text-white/28 font-[750] tracking-[-0.045em]">your business is</span>
+                  <span className="block tracking-[-0.05em]">leaving behind.</span>
                 </h1>
               </div>
 
-              <div className={`mt-6 transition-all duration-[800ms] ease-[cubic-bezier(0.16,1,0.3,1)] delay-200 ${heroVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
-                <p className="max-w-[460px] text-[15px] leading-[1.65] tracking-[-0.015em] text-white/55">
-                  Onvyra identifies recoverable revenue inside your existing CRM and customer data, explains <span className="font-[600] text-white/90">why each opportunity matters</span> and shows your team who to contact first.
+              <div className={`mt-7 transition-all duration-[800ms] ease-[cubic-bezier(0.16,1,0.3,1)] delay-200 ${heroVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
+                <p className="max-w-[520px] text-[16px] leading-[1.6] tracking-[-0.015em] text-white/50">
+                  Your CRM already contains money. Onvyra finds recoverable revenue, explains <span className="font-[600] text-white/85">why each opportunity matters</span> and shows who to contact first.
                 </p>
               </div>
 
-              <div className={`mt-8 transition-all duration-[800ms] ease-[cubic-bezier(0.16,1,0.3,1)] delay-300 ${heroVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
+              <div className={`mt-9 transition-all duration-[800ms] ease-[cubic-bezier(0.16,1,0.3,1)] delay-300 ${heroVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
                 <div className="flex flex-wrap items-center gap-3">
-                  <Link href="/register" className="group inline-flex h-[44px] items-center justify-center gap-2 rounded-[12px] bg-white px-[22px] text-[14px] font-[700] text-[#0A0A0B] shadow-[0_1px_2px_rgba(255,255,255,0.1),0_8px_24px_rgba(255,255,255,0.1)] hover:bg-[#F5F5F7] hover:shadow-[0_12px_32px_rgba(255,255,255,0.15)] hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.98] transition-all duration-200">
+                  <Link href="/register" className="group inline-flex h-[48px] items-center justify-center gap-2 rounded-[12px] bg-white px-[26px] text-[14px] font-[750] tracking-[-0.01em] text-[#0A0A0B] shadow-[0_1px_2px_rgba(255,255,255,0.08),0_12px_32px_rgba(255,255,255,0.10)] hover:bg-[#F5F5F7] hover:shadow-[0_16px_40px_rgba(255,255,255,0.14)] hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.98] transition-all duration-200">
                     Analyze Your Pipeline
                     <span className="transition-transform group-hover:translate-x-0.5">→</span>
                   </Link>
-                  <a href="#how-it-works" className="inline-flex h-[44px] items-center justify-center rounded-[12px] border border-white/15 bg-white/[0.06] px-[20px] text-[14px] font-[600] text-white backdrop-blur hover:bg-white/[0.1] hover:border-white/20 transition-all">
+                  <a href="#how-it-works" className="inline-flex h-[48px] items-center justify-center rounded-[12px] border border-white/[0.12] bg-white/[0.05] px-[20px] text-[13.5px] font-[600] tracking-[-0.01em] text-white/80 backdrop-blur hover:bg-white/[0.08] hover:border-white/[0.18] hover:text-white transition-all">
                     See How It Works
                   </a>
                 </div>
-                <div className="mt-5 flex items-center gap-3 text-[11px] font-[500] tracking-[0.01em] text-white/40">
-                  <span className="inline-flex items-center gap-1.5"><span className="h-1 w-1 rounded-full bg-white/40" /> Potential ≠ Confirmed</span>
+                <div className="mt-6 flex items-center gap-3 text-[11px] font-[500] tracking-[0.01em] text-white/35">
+                  <span className="inline-flex items-center gap-1.5"><span className="h-1 w-1 rounded-full bg-white/30" /> Potential ≠ Confirmed</span>
                   <span className="h-3 w-px bg-white/10" />
-                  <span>Estimated not guaranteed</span>
+                  <span>Est. not guaranteed</span>
                   <span className="h-3 w-px bg-white/10" />
-                  <span>You stay in control</span>
+                  <span>Deterministic • No hallucination</span>
                 </div>
               </div>
 
-              {/* Recovery Intelligence Flow — Real System Operating — Calm Deterministic */}
-              <div className={`mt-14 transition-all duration-[800ms] ease-[cubic-bezier(0.16,1,0.3,1)] delay-[400ms] ${heroVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
-                <div className="rounded-[16px] border border-white/[0.07] bg-white/[0.03] p-1 backdrop-blur-[12px]">
-                  <div className="rounded-[12px] bg-[#111113] border border-white/[0.05] p-[20px]">
-                    <div className="flex items-center justify-between">
-                      <div className="text-[10px] font-[700] tracking-[0.08em] text-white/35">RECOVERY INTELLIGENCE FLOW • DETERMINISTIC • NO FAKE PROGRESS</div>
-                      <div className="flex items-center gap-2">
-                        <div className={`h-1.5 w-1.5 rounded-full ${scanComplete ? "bg-[#10B981]" : "bg-[#F59E0B]"}`} />
-                        <span className={`text-[10px] font-[700] tracking-[0.06em] ${scanComplete ? "text-[#10B981]" : "text-white/50"}`}>{scanComplete ? "COMPLETE • 43 DETECTED" : `ANALYZING • ${scanning}%`}</span>
-                      </div>
-                    </div>
-
-                    <div className="mt-6 grid grid-cols-6 gap-2">
-                      {[
-                        { label: "CRM DATA", value: "1,284", threshold: 10 },
-                        { label: "AI ANALYZING", value: scanComplete ? "100%" : `${scanning}%`, threshold: 20 },
-                        { label: "INTENT", value: "CHECKED", threshold: 45 },
-                        { label: "OPPORTUNITIES", value: "43", threshold: 70 },
-                        { label: "PRIORITY", value: "RANKED", threshold: 85 },
-                        { label: "RECOVERABLE", value: "₽2.8M", threshold: 95 },
-                      ].map((step, i) => {
-                        const active = scanning > step.threshold || scanComplete;
-                        return (
-                          <div key={i} className="relative">
-                            <div className={`rounded-[10px] border p-2.5 transition-all duration-500 ${active ? "bg-white text-[#0A0A0B] border-white shadow-[0_2px_12px_rgba(255,255,255,0.12)]" : "bg-white/[0.03] border-white/[0.05] text-white/25"}`}>
-                              <div className="text-[9px] font-[700] tracking-[0.07em] leading-none opacity-80">{step.label}</div>
-                              <div className="mt-1.5 font-mono-financial text-[12.5px] font-[750] tracking-[-0.02em] leading-none">{step.value}</div>
-                            </div>
-                            {i < 5 && (
-                              <div className="absolute top-1/2 -right-1 z-10 flex items-center">
-                                <div className={`h-px w-2 transition-colors duration-500 ${scanning > (i + 1) * 16 || scanComplete ? "bg-white/60" : "bg-white/[0.07]"}`} />
-                                <div className={`h-1 w-1 rounded-full -ml-px transition-colors duration-500 ${scanning > (i + 1) * 16 || scanComplete ? "bg-white/60" : "bg-white/15"}`} />
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    <div className="mt-6 space-y-3">
-                      <div className="flex justify-between text-[11px] items-center">
-                        <span className="text-white/40 font-[500] tracking-[0.01em]">CRM DATA → AI ANALYZING → PURCHASE INTENT → INACTIVE → PROBABILITY → PRIORITY → RECOVERABLE</span>
-                        <span className="font-mono-financial font-[650] text-white/70 tabular-nums text-[11px]">{scanning}%</span>
-                      </div>
-                      <div className="h-[2px] w-full overflow-hidden rounded-full bg-white/[0.05]">
-                        <div className="h-full bg-white/80 transition-all duration-100 ease-linear rounded-full" style={{ width: `${scanning}%` }} />
-                      </div>
-                      <div className="grid grid-cols-3 gap-2 pt-1 text-[10px] font-[500] tracking-[0.01em]">
-                        <span className={`flex items-center gap-1.5 transition-colors duration-300 ${scanning > 20 || scanComplete ? "text-white/70" : "text-white/25"}`}><span className={`h-3.5 w-3.5 rounded-full flex items-center justify-center text-[9px] font-[700] border ${scanning > 20 || scanComplete ? "bg-white text-black border-white" : "bg-white/[0.04] border-white/10 text-white/30"}`}>{scanning > 20 || scanComplete ? "✓" : "○"}</span> Analyzing CRM</span>
-                        <span className={`flex items-center gap-1.5 transition-colors duration-300 ${scanning > 50 || scanComplete ? "text-white/70" : "text-white/25"}`}><span className={`h-3.5 w-3.5 rounded-full flex items-center justify-center text-[9px] font-[700] border ${scanning > 50 || scanComplete ? "bg-white text-black border-white" : "bg-white/[0.04] border-white/10 text-white/30"}`}>{scanning > 50 || scanComplete ? "✓" : "○"}</span> Checking intent</span>
-                        <span className={`flex items-center gap-1.5 transition-colors duration-300 ${scanning > 75 || scanComplete ? "text-white/70" : "text-white/25"}`}><span className={`h-3.5 w-3.5 rounded-full flex items-center justify-center text-[9px] font-[700] border ${scanning > 75 || scanComplete ? "bg-white text-black border-white" : "bg-white/[0.04] border-white/10 text-white/30"}`}>{scanning > 75 || scanComplete ? "✓" : "○"}</span> Ranking opps</span>
-                      </div>
-                      {scanComplete && (
-                        <div className="pt-2 flex items-center gap-2 text-[11px] font-[550] tracking-[-0.01em] text-white/60">
-                          <span className="h-4 w-4 rounded-full bg-white text-black flex items-center justify-center text-[9px] font-[800]">✓</span>
-                          43 opportunities detected • ₽2,840,000 estimated • Potential ≠ Confirmed • Deterministic • No hallucination
-                        </div>
-                      )}
-                    </div>
+              {/* AI System — Direct on Canvas — Not Card Soup — Progressive Reveal */}
+              <div className={`mt-16 border-t border-white/[0.06] pt-6 transition-all duration-[800ms] ease-[cubic-bezier(0.16,1,0.3,1)] delay-[400ms] ${heroVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
+                <div className="flex items-center justify-between">
+                  <div className="text-[10px] font-[700] tracking-[0.08em] text-white/30">RECOVERY INTELLIGENCE • DETERMINISTIC SYSTEM</div>
+                  <div className="flex items-center gap-2">
+                    <div className={`h-1.5 w-1.5 rounded-full ${scanComplete ? "bg-[#10B981]" : "bg-[#F59E0B]"}`} />
+                    <span className={`text-[10px] font-[700] tracking-[0.06em] ${scanComplete ? "text-white/60" : "text-white/40"}`}>{scanComplete ? "43 DETECTED • ₽2.8M" : `${scanning}% ANALYZING`}</span>
                   </div>
+                </div>
+
+                <div className="mt-5 flex items-center gap-0 overflow-x-auto scrollbar-none">
+                  {[
+                    { k: "CRM DATA", v: "1,284", t: 8 },
+                    { k: "AI ANALYZING", v: scanComplete ? "100%" : `${scanning}%`, t: 18 },
+                    { k: "INTENT", v: "CHECKED", t: 40 },
+                    { k: "INACTIVE", v: "DETECTED", t: 60 },
+                    { k: "OPPS", v: "43", t: 75 },
+                    { k: "PRIORITY", v: "RANKED", t: 88 },
+                    { k: "RECOVERABLE", v: "₽2.8M", t: 95 },
+                  ].map((step, i) => {
+                    const active = scanning > step.t || scanComplete;
+                    const current = !scanComplete && scanning >= step.t && scanning < ([
+                      8,18,40,60,75,88,95
+                    ][i+1] ?? 101);
+                    return (
+                      <div key={i} className="flex items-center gap-0 shrink-0">
+                        <div className={`group flex items-center gap-2 rounded-full border px-3 py-1.5 transition-all duration-500 ${current ? "bg-white text-black border-white shadow-[0_2px_12px_rgba(255,255,255,0.14)]" : active ? "bg-white/[0.06] border-white/[0.08] text-white/50" : "bg-transparent border-white/[0.06] text-white/20"}`}>
+                          <span className={`h-3.5 w-3.5 rounded-full flex items-center justify-center text-[8px] font-[800] border transition-colors ${active ? "bg-white text-black border-white" : "bg-white/[0.04] border-white/10 text-white/20"}`}>{active ? "✓" : "○"}</span>
+                          <span className="text-[10px] font-[700] tracking-[0.05em] leading-none">{step.k}</span>
+                          <span className="font-mono-financial text-[11px] font-[750] tracking-[-0.02em] leading-none ml-1">{step.v}</span>
+                        </div>
+                        {i < 6 && <div className={`h-px w-4 shrink-0 transition-colors duration-500 ${scanning > step.t || scanComplete ? "bg-white/25" : "bg-white/[0.06]"}`} />}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-5 space-y-3">
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="text-white/30 font-[500] tracking-[0.01em] font-mono text-[10.5px]">CRM → ANALYZING → INTENT → INACTIVE → PROBABILITY → PRIORITY → RECOVERABLE</span>
+                    <span className="font-mono-financial font-[700] text-white/50 tabular-nums text-[11px]">{scanning}%</span>
+                  </div>
+                  <div className="h-[2px] w-full overflow-hidden rounded-full bg-white/[0.06]">
+                    <div className="h-full bg-white transition-all duration-100 ease-linear rounded-full" style={{ width: `${scanning}%` }} />
+                  </div>
+                  {scanComplete && (
+                    <div className="pt-1 flex items-center gap-2 text-[11px] font-[550] tracking-[-0.01em] text-white/50">
+                      <span className="h-4 w-4 rounded-full bg-white text-black flex items-center justify-center text-[9px] font-[800]">✓</span>
+                      43 opportunities • ₽2,840,000 estimated recoverable • Potential ≠ Confirmed • Deterministic
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Right — Product Hero — Strongest Part */}
-            <div className="lg:sticky lg:top-[80px]">
-              <Reveal delay={200}>
-                <div className="relative rounded-[20px] border border-white/[0.08] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04),0_24px_64px_rgba(0,0,0,0.12),0_0_0_1px_rgba(0,0,0,0.04)] overflow-hidden">
+            {/* Right — Product Hero — DOMINANT — 640x560 Real Product Territory */}
+            <div className="lg:sticky lg:top-[80px] lg:-mr-2">
+              <Reveal delay={150}>
+                <div className="group relative w-full lg:w-[640px] rounded-[20px] border border-white/[0.08] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04),0_24px_64px_rgba(0,0,0,0.14),0_0_0_1px_rgba(0,0,0,0.04)] overflow-hidden hover:shadow-[0_1px_2px_rgba(0,0,0,0.04),0_32px_80px_rgba(0,0,0,0.18),0_0_0_1px_rgba(0,0,0,0.04)] hover:-translate-y-[2px] transition-all duration-500">
                   <div className="flex h-[44px] items-center justify-between border-b border-[#0A0A0B]/[0.06] bg-[#FCFCFD] px-5">
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-3">
                       <div className="flex gap-1.5">
                         <div className="h-3 w-3 rounded-full bg-[#FF5F57] shadow-[inset_0_1px_1px_rgba(0,0,0,0.15)]" />
                         <div className="h-3 w-3 rounded-full bg-[#FFBD2E] shadow-[inset_0_1px_1px_rgba(0,0,0,0.15)]" />
@@ -250,68 +243,70 @@ export default function LandingPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-[184px_1fr] min-h-[560px]">
-                    <div className="border-r border-[#0A0A0B]/[0.06] bg-[#F9FAFB] p-3 flex flex-col">
+                  <div className="grid grid-cols-[200px_1fr] min-h-[540px]">
+                    {/* Sidebar — Recoverable Revenue DOMINANT 40-52px */}
+                    <div className="border-r border-[#0A0A0B]/[0.06] bg-[#F9FAFB] p-3.5 flex flex-col">
                       <div className="space-y-5 flex-1">
                         <div>
                           <div className="px-2 py-1 text-[10px] font-[800] tracking-[0.08em] text-[#71717A]">OVERVIEW</div>
                           <div className="mt-1.5 space-y-0.5">
-                            <div className="flex items-center gap-2.5 rounded-[9px] bg-[#0A0A0B] px-2.5 py-2 text-[12.5px] font-[600] text-white shadow-[0_1px_2px_rgba(0,0,0,0.08)]">
+                            <div className="flex items-center gap-2.5 rounded-[10px] bg-[#0A0A0B] px-3 py-2.5 text-[13px] font-[600] text-white shadow-[0_1px_2px_rgba(0,0,0,0.08)]">
                               <div className="h-4 w-4 rounded-[5px] bg-white/15 flex items-center justify-center text-[10px]">◧</div> Dashboard
                             </div>
-                            <div className="flex items-center gap-2 rounded-[9px] px-2.5 py-2 text-[12.5px] font-[500] text-[#52525B] hover:bg-white hover:text-[#0A0A0B] transition-colors">↗ Recovery Inbox <span className="ml-auto text-[10px] bg-[#EF4444] text-white px-1.5 py-0.5 rounded-full font-[700] shadow-sm">8</span></div>
-                            <div className="flex items-center gap-2 rounded-[9px] px-2.5 py-2 text-[12.5px] font-[500] text-[#52525B] hover:bg-white transition-colors">◫ Opportunities</div>
-                            <div className="flex items-center gap-2 rounded-[9px] px-2.5 py-2 text-[12.5px] font-[500] text-[#52525B] hover:bg-white transition-colors">⚑ Campaigns</div>
+                            <div className="flex items-center gap-2 rounded-[10px] px-3 py-2 text-[12.5px] font-[500] text-[#52525B] hover:bg-white hover:text-[#0A0A0B] transition-colors">↗ Recovery Inbox <span className="ml-auto text-[10px] bg-[#EF4444] text-white px-1.5 py-0.5 rounded-full font-[700] shadow-sm">8</span></div>
+                            <div className="flex items-center gap-2 rounded-[10px] px-3 py-2 text-[12.5px] font-[500] text-[#52525B] hover:bg-white transition-colors">◫ Opportunities</div>
+                            <div className="flex items-center gap-2 rounded-[10px] px-3 py-2 text-[12.5px] font-[500] text-[#52525B] hover:bg-white transition-colors">⚑ Campaigns</div>
                           </div>
                         </div>
                         <div>
                           <div className="px-2 py-1 text-[10px] font-[800] tracking-[0.08em] text-[#71717A]">SYSTEM</div>
                           <div className="mt-1.5 space-y-0.5">
-                            <div className="flex items-center gap-2 rounded-[9px] px-2.5 py-2 text-[12.5px] font-[500] text-[#52525B]">◍ CRM</div>
-                            <div className="flex items-center gap-2 rounded-[9px] px-2.5 py-2 text-[12.5px] font-[500] text-[#52525B]">◎ Billing</div>
-                            <div className="flex items-center gap-2 rounded-[9px] px-2.5 py-2 text-[12.5px] font-[500] text-[#52525B]">⚙ Settings</div>
+                            <div className="flex items-center gap-2 rounded-[10px] px-3 py-2 text-[12.5px] font-[500] text-[#52525B]">◍ CRM</div>
+                            <div className="flex items-center gap-2 rounded-[10px] px-3 py-2 text-[12.5px] font-[500] text-[#52525B]">◎ Billing</div>
+                            <div className="flex items-center gap-2 rounded-[10px] px-3 py-2 text-[12.5px] font-[500] text-[#52525B]">⚙ Settings</div>
                           </div>
                         </div>
                       </div>
 
-                      <div className="rounded-[12px] bg-[#0A0A0B] p-3.5 text-white shadow-[0_4px_16px_rgba(0,0,0,0.15)]">
-                        <div className="text-[10px] font-[800] tracking-[0.06em] text-white/50">RECOVERABLE REVENUE</div>
-                        <div className="mt-2 font-mono-financial text-[20px] font-[800] tracking-[-0.02em] leading-none">₽<CountUp value={2840000} trigger={scanComplete} /></div>
-                        <div className="mt-1.5 text-[11px] text-white/50 leading-[1.3]">43 opportunities • Est. not guaranteed</div>
-                        <div className="mt-3.5 grid grid-cols-3 gap-2 text-center">
-                          <div className="rounded-[8px] bg-white/[0.08] border border-white/[0.06] py-2"><div className="font-[750] text-[13px] leading-none">8</div><div className="text-[9px] text-white/40 font-[700] tracking-[0.05em] mt-1">CRITICAL</div></div>
-                          <div className="rounded-[8px] bg-white/[0.08] border border-white/[0.06] py-2"><div className="font-[750] text-[13px] leading-none">15</div><div className="text-[9px] text-white/40 font-[700] tracking-[0.05em] mt-1">HIGH</div></div>
-                          <div className="rounded-[8px] bg-[#10B981] py-2 shadow-[0_2px_8px_rgba(16,185,129,0.3)]"><div className="font-[750] text-[13px] leading-none">₽<CountUp value={317} trigger={scanComplete} />k</div><div className="text-[9px] text-white/80 font-[700] tracking-[0.05em] mt-1">CONFIRMED</div></div>
+                      <div className="rounded-[14px] bg-[#0A0A0B] p-4 text-white shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+                        <div className="text-[10px] font-[800] tracking-[0.08em] text-white/40">RECOVERABLE REVENUE</div>
+                        <div className="mt-3 font-mono-financial text-[36px] font-[850] tracking-[-0.04em] leading-[0.9]">₽<CountUp value={2840000} trigger={scanComplete} /></div>
+                        <div className="mt-2 text-[11px] text-white/45 leading-[1.3] font-[500]">43 opportunities • Est. not guaranteed • Potential ≠ Confirmed</div>
+                        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                          <div className="rounded-[10px] bg-white/[0.07] border border-white/[0.06] py-2.5"><div className="font-[800] text-[14px] leading-none tracking-[-0.02em]">8</div><div className="text-[9px] text-white/35 font-[700] tracking-[0.06em] mt-1.5">CRITICAL</div></div>
+                          <div className="rounded-[10px] bg-white/[0.07] border border-white/[0.06] py-2.5"><div className="font-[800] text-[14px] leading-none tracking-[-0.02em]">15</div><div className="text-[9px] text-white/35 font-[700] tracking-[0.06em] mt-1.5">HIGH</div></div>
+                          <div className="rounded-[10px] bg-white text-[#0A0A0B] py-2.5 shadow-[0_2px_8px_rgba(255,255,255,0.12)]"><div className="font-[800] text-[13px] leading-none tracking-[-0.02em]">₽<CountUp value={317} trigger={scanComplete} />k</div><div className="text-[9px] text-black/50 font-[700] tracking-[0.06em] mt-1.5">CONFIRMED</div></div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="bg-white p-4 flex flex-col">
+                    {/* Main — Top Opportunity — Stronger Hierarchy — Larger Numbers */}
+                    <div className="bg-white p-5 flex flex-col">
                       <div className="flex items-center justify-between">
                         <div className="text-[10px] font-[800] tracking-[0.08em] text-[#71717A]">REVENUE INTELLIGENCE • TOP OPPORTUNITY</div>
                         <div className={`h-1.5 w-1.5 rounded-full ${scanComplete ? "bg-[#10B981]" : "bg-[#F59E0B] animate-[pulse-subtle_1s_ease-in-out_infinite]"}`} />
                       </div>
 
-                      <div className="mt-4 flex items-start gap-3">
-                        <div className="h-10 w-10 rounded-full bg-[#0A0A0B] text-white flex items-center justify-center text-[13px] font-[750] shadow-sm shrink-0">{active.name[0]}</div>
+                      <div className="mt-5 flex items-start gap-3.5">
+                        <div className="h-11 w-11 rounded-full bg-[#0A0A0B] text-white flex items-center justify-center text-[14px] font-[800] shadow-sm shrink-0">{active.name[0]}</div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-[700] text-[13.5px] tracking-[-0.01em]">{active.name}</span>
-                            <span className="text-[12px] text-[#71717A]">• {active.company}</span>
+                            <span className="font-[750] text-[15px] tracking-[-0.02em]">{active.name}</span>
+                            <span className="text-[13px] text-[#71717A] font-[450]">• {active.company}</span>
                           </div>
-                          <div className="mt-1 text-[11px] leading-[1.4] text-[#71717A]">₽{active.value.toLocaleString("ru-RU")} • Last contact 18 days ago • {active.why.slice(0, 36)}...</div>
+                          <div className="mt-1 text-[11.5px] leading-[1.4] text-[#71717A] font-[450]">₽{active.value.toLocaleString("ru-RU")} • Last contact 18 days ago • {active.why.slice(0, 42)}...</div>
                         </div>
-                        <div className={`shrink-0 h-8 px-2.5 rounded-full flex items-center justify-center text-[12px] font-[800] tracking-[-0.01em] shadow-sm transition-all duration-300 ${active.score >= 90 ? "bg-[#EF4444] text-white shadow-[0_2px_8px_rgba(239,68,68,0.25)]" : "bg-[#F97316] text-white shadow-[0_2px_8px_rgba(249,115,22,0.25)]"}`}>{active.score}</div>
+                        <div className={`shrink-0 h-9 px-3 rounded-full flex items-center justify-center text-[13px] font-[850] tracking-[-0.01em] shadow-sm ${active.score >= 90 ? "bg-[#EF4444] text-white shadow-[0_2px_10px_rgba(239,68,68,0.28)]" : "bg-[#F97316] text-white shadow-[0_2px_10px_rgba(249,115,22,0.28)]"}`}>{active.score}</div>
                       </div>
 
-                      <div className="mt-5 grid grid-cols-[1fr_92px] gap-3 flex-1">
-                        <div className="rounded-[12px] border border-[#E4E4E7] bg-[#FCFCFD] p-3.5">
+                      <div className="mt-6 grid grid-cols-[1fr_100px] gap-3.5 flex-1">
+                        <div className="rounded-[12px] border border-[#E4E4E7] bg-[#FCFCFD] p-4">
                           <div className="text-[10px] font-[800] tracking-[0.08em] text-[#71717A]">WHY THIS LEAD?</div>
-                          <div className="mt-3 space-y-2">
+                          <div className="mt-3.5 space-y-2.5">
                             {active.factors.map((f, i) => (
-                              <div key={i} className="group flex items-center justify-between text-[11px] py-1 border-b border-[#F4F4F5] last:border-0 hover:bg-white hover:px-2 hover:-mx-2 hover:rounded-[6px] transition-all">
+                              <div key={i} className="group flex items-center justify-between text-[11.5px] py-1 border-b border-[#F4F4F5] last:border-0 hover:bg-white hover:px-2 hover:-mx-2 hover:rounded-[6px] transition-all">
                                 <span className="font-[500] text-[#18181B] tracking-[-0.01em]">{f}</span>
-                                <span className={`h-1.5 w-1.5 rounded-full shrink-0 ml-2 transition-transform group-hover:scale-125 ${f.includes("+20") ? "bg-[#0A0A0B]" : f.includes("+15") ? "bg-[#52525B]" : "bg-[#A1A1AA]"}`} />
+                                <span className={`h-1.5 w-1.5 rounded-full shrink-0 ml-2 ${f.includes("+20") ? "bg-[#0A0A0B]" : f.includes("+15") ? "bg-[#52525B]" : "bg-[#A1A1AA]"}`} />
                               </div>
                             ))}
                           </div>
@@ -323,60 +318,53 @@ export default function LandingPage() {
                           </div>
                         </div>
                         <div className="space-y-3 flex flex-col">
-                          <div className="rounded-[12px] bg-[#F9FAFB] border border-[#E4E4E7] p-3 text-center hover:border-[#0A0A0B]/15 hover:shadow-sm transition-all">
+                          <div className="rounded-[12px] bg-[#F9FAFB] border border-[#E4E4E7] p-3.5 text-center hover:border-[#0A0A0B]/12 hover:shadow-sm transition-all">
                             <div className="text-[10px] font-[800] tracking-[0.08em] text-[#71717A]">SCORE</div>
-                            <div className="mt-1.5 text-[26px] font-[850] tracking-[-0.03em] leading-none">{active.score}</div>
-                            <div className="mt-1.5 text-[10px] font-[800] tracking-[0.05em] text-[#EF4444]">{active.score >= 90 ? "CRITICAL" : "HIGH"}</div>
+                            <div className="mt-2 text-[28px] font-[850] tracking-[-0.04em] leading-none">{active.score}</div>
+                            <div className="mt-1.5 text-[10px] font-[800] tracking-[0.06em] text-[#EF4444]">{active.score >= 90 ? "CRITICAL" : "HIGH"}</div>
                           </div>
-                          <div className="rounded-[12px] bg-[#0A0A0B] p-3 text-center text-white shadow-[0_4px_12px_rgba(0,0,0,0.15)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.2)] hover:-translate-y-[1px] transition-all">
-                            <div className="text-[10px] font-[800] tracking-[0.08em] text-white/50">PROBABILITY</div>
-                            <div className="mt-1.5 text-[22px] font-[850] tracking-[-0.02em] leading-none">{active.prob}%</div>
-                            <div className="mt-1 text-[10px] text-white/50">Est. • Not guaranteed</div>
+                          <div className="rounded-[12px] bg-[#0A0A0B] p-3.5 text-center text-white shadow-[0_4px_16px_rgba(0,0,0,0.16)]">
+                            <div className="text-[10px] font-[800] tracking-[0.08em] text-white/40">PROBABILITY</div>
+                            <div className="mt-2 text-[24px] font-[850] tracking-[-0.03em] leading-none">{active.prob}%</div>
+                            <div className="mt-1 text-[10px] text-white/40 font-[500]">Est. • Not guaranteed</div>
                           </div>
-                          <div className="flex-1 rounded-[12px] bg-[#F9FAFB] border border-[#E4E4E7]/80 p-3 flex flex-col justify-center">
+                          <div className="flex-1 rounded-[12px] bg-[#F9FAFB] border border-[#E4E4E7]/80 p-3.5 flex flex-col justify-center">
                             <div className="text-[10px] font-[800] tracking-[0.08em] text-[#71717A]">EST. RECOVERABLE</div>
-                            <div className="mt-1 font-mono-financial text-[14px] font-[750] tracking-[-0.02em]">₽{Math.round(active.value * active.prob / 100).toLocaleString("ru-RU")}</div>
-                            <div className="text-[9px] text-[#A1A1AA] mt-1">Est. not guaranteed</div>
+                            <div className="mt-1.5 font-mono-financial text-[15px] font-[800] tracking-[-0.02em]">₽{Math.round(active.value * active.prob / 100).toLocaleString("ru-RU")}</div>
+                            <div className="text-[9.5px] text-[#A1A1AA] mt-1 font-[500]">Est. not guaranteed</div>
                           </div>
                         </div>
                       </div>
 
-                      <div className="mt-4 rounded-[12px] bg-[#F9FAFB] border border-[#E4E4E7] p-3.5 hover:border-[#0A0A0B]/10 hover:bg-white hover:shadow-sm transition-all">
+                      <div className="mt-5 rounded-[12px] bg-[#F9FAFB] border border-[#E4E4E7] p-4 hover:border-[#0A0A0B]/10 hover:bg-white hover:shadow-sm transition-all">
                         <div className="flex items-center justify-between">
                           <div className="text-[10px] font-[800] tracking-[0.08em] text-[#71717A]">RECOMMENDED ACTION</div>
-                          <span className="text-[10px] font-[800] tracking-[0.05em] px-2 py-0.5 rounded-full bg-[#0A0A0B] text-white shadow-sm">FOLLOW UP TODAY</span>
+                          <span className="text-[10px] font-[800] tracking-[0.05em] px-2.5 py-1 rounded-full bg-[#0A0A0B] text-white shadow-sm">FOLLOW UP TODAY</span>
                         </div>
-                        <div className="mt-2.5 text-[12px] font-[500] leading-[1.45] tracking-[-0.01em] text-[#18181B]">Customer requested pricing, proposal sent, no follow-up for 18 days. High-value deal with explicit purchase intent.</div>
-                        <div className="mt-3.5 flex gap-2">
-                          <button className="flex-1 h-[34px] rounded-[9px] bg-[#0A0A0B] text-white text-[12px] font-[650] shadow-[0_1px_2px_rgba(0,0,0,0.08)] hover:bg-[#1A1D23] hover:shadow-[0_4px_12px_rgba(0,0,0,0.12)] hover:-translate-y-[0.5px] active:translate-y-0 active:scale-[0.98] transition-all">Generate Recovery Message →</button>
-                          <button className="h-[34px] w-[34px] rounded-[9px] border border-[#E4E4E7] bg-white flex items-center justify-center text-[#71717A] hover:text-[#0A0A0B] hover:bg-[#F9FAFB] hover:border-[#0A0A0B]/15 transition-colors">↗</button>
+                        <div className="mt-3 text-[12.5px] font-[500] leading-[1.45] tracking-[-0.01em] text-[#18181B]">Customer requested pricing, proposal sent, no follow-up for 18 days. High-value deal with explicit purchase intent.</div>
+                        <div className="mt-4 flex gap-2">
+                          <button className="flex-1 h-[36px] rounded-[10px] bg-[#0A0A0B] text-white text-[12.5px] font-[700] tracking-[-0.01em] shadow-[0_1px_2px_rgba(0,0,0,0.08)] hover:bg-[#1A1D23] hover:shadow-[0_4px_12px_rgba(0,0,0,0.14)] hover:-translate-y-[0.5px] active:translate-y-0 active:scale-[0.98] transition-all">Generate Recovery Message →</button>
+                          <button className="h-[36px] w-[36px] rounded-[10px] border border-[#E4E4E7] bg-white flex items-center justify-center text-[#71717A] hover:text-[#0A0A0B] hover:bg-[#F9FAFB] hover:border-[#0A0A0B]/15 transition-colors">↗</button>
                         </div>
                       </div>
 
-                      <div className="mt-4 flex gap-1.5">
+                      <div className="mt-5 flex gap-1.5">
                         {opportunities.map((_, i) => (
                           <button key={i} onClick={() => setActiveOpp(i)} className={`h-1.5 rounded-full transition-all duration-500 ${i === activeOpp ? "w-8 bg-[#0A0A0B]" : "w-1.5 bg-[#E4E4E7] hover:bg-[#D4D4D8] hover:w-3"}`} />
                         ))}
-                        <div className="ml-auto text-[10px] font-[600] tracking-[0.02em] text-[#A1A1AA]">{activeOpp + 1} / {opportunities.length}</div>
+                        <div className="ml-auto text-[10px] font-[600] tracking-[0.02em] text-[#A1A1AA] font-mono">{activeOpp + 1} / {opportunities.length}</div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex h-[36px] items-center justify-between border-t border-[#0A0A0B]/[0.06] bg-[#F9FAFB] px-4 text-[11px]">
+                  <div className="flex h-[38px] items-center justify-between border-t border-[#0A0A0B]/[0.06] bg-[#F9FAFB] px-5 text-[11px]">
                     <div className="flex items-center gap-3">
-                      <span className="flex items-center gap-1.5 font-[550] text-[#52525B]"><span className={`h-1.5 w-1.5 rounded-full ${scanComplete ? "bg-[#10B981]" : "bg-[#F59E0B] animate-[pulse-subtle_1.5s_ease-in-out_infinite]"}`} /> {scanComplete ? "43 opportunities detected" : "Analyzing pipeline..."}</span>
+                      <span className="flex items-center gap-1.5 font-[600] text-[#52525B] tracking-[-0.01em]"><span className={`h-1.5 w-1.5 rounded-full ${scanComplete ? "bg-[#10B981]" : "bg-[#F59E0B] animate-[pulse-subtle_1.5s_ease-in-out_infinite]"}`} /> {scanComplete ? "43 opportunities detected • Deterministic" : "Analyzing pipeline..."}</span>
                       <span className="hidden md:inline text-[#D4D4D8]">•</span>
-                      <span className="hidden md:inline text-[#71717A] font-[450]">Potential ≠ Confirmed • Est. not guaranteed</span>
+                      <span className="hidden md:inline text-[#71717A] font-[450] text-[10.5px]">Potential ≠ Confirmed</span>
                     </div>
-                    <span className="font-mono-financial font-[650] tracking-[-0.01em] text-[#0A0A0B]">₽{scanComplete ? "2,840,000" : "—"} estimated</span>
+                    <span className="font-mono-financial font-[700] tracking-[-0.02em] text-[#0A0A0B] text-[12px]">₽{scanComplete ? "2,840,000" : "—"} estimated</span>
                   </div>
-                </div>
-
-                <div className="pointer-events-none absolute -right-3 -top-3 hidden lg:flex flex-col gap-2">
-                  <div className="rounded-full border border-[#0A0A0B]/10 bg-white px-3 py-1.5 shadow-[0_4px_16px_rgba(0,0,0,0.08)] text-[11px] font-[600] flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-[#10B981]" /> No fake metrics
-                  </div>
-                  <div className="rounded-full border border-[#0A0A0B]/10 bg-white px-3 py-1.5 shadow-[0_4px_16px_rgba(0,0,0,0.08)] text-[11px] font-[600]">Tenant isolated ✓</div>
                 </div>
               </Reveal>
             </div>
@@ -384,9 +372,9 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Product Preview — LIGHT — Live Application Feel */}
+      {/* Product Preview — LIGHT — Real Product Density — 1360px */}
       <section id="product" className="relative z-10 bg-[#FCFCFD] border-b border-[#0A0A0B]/[0.06]">
-        <div className="mx-auto max-w-[1280px] px-6 lg:px-8 py-[88px]">
+        <div className="mx-auto max-w-[1360px] px-6 lg:px-[32px] py-[96px]">
           <div className="flex flex-wrap items-end justify-between gap-6">
             <Reveal>
               <div>
@@ -394,16 +382,16 @@ export default function LandingPage() {
                   <span className="h-1.5 w-1.5 rounded-full bg-[#0A0A0B]" />
                   <span className="text-[11px] font-[700] tracking-[0.06em] text-[#52525B]">RECOVERY INBOX • WHO SHOULD I CONTACT FIRST?</span>
                 </div>
-                <h2 className="mt-5 text-[32px] md:text-[40px] font-[750] leading-[0.95] tracking-[-0.03em]">Prioritized by score,<br />probability, and revenue.</h2>
-                <p className="mt-3 text-[14px] leading-[1.6] text-[#52525B] max-w-[480px]">Not a generic list. Every opportunity explains why it matters, how much is at stake, and what to do next. Potential ≠ Confirmed.</p>
+                <h2 className="mt-6 text-[36px] md:text-[44px] font-[800] leading-[0.92] tracking-[-0.04em]">Prioritized by score,<br />probability, and revenue.</h2>
+                <p className="mt-4 text-[15px] leading-[1.6] text-[#52525B] max-w-[520px]">Not a generic list. Every opportunity explains why it matters, how much is at stake, and what to do next. Potential ≠ Confirmed. Deterministic.</p>
               </div>
             </Reveal>
             <Reveal delay={100}>
               <div className="flex items-center gap-2 text-[12px]">
                 <span className="text-[#71717A] font-[500]">Sort:</span>
-                <span className="font-[700] px-3 py-1.5 rounded-full bg-[#0A0A0B] text-white text-[11px] shadow-sm">Score ↓</span>
-                <span className="px-3 py-1.5 rounded-full border border-[#E4E4E7] bg-white text-[11px] font-[500] hover:border-[#0A0A0B]/20 transition-colors">Deal Value</span>
-                <span className="px-3 py-1.5 rounded-full border border-[#E4E4E7] bg-white text-[11px] font-[500] hover:border-[#0A0A0B]/20 transition-colors">Inactivity</span>
+                <span className="font-[700] px-3.5 py-1.5 rounded-full bg-[#0A0A0B] text-white text-[11px] shadow-sm">Score ↓</span>
+                <span className="px-3.5 py-1.5 rounded-full border border-[#E4E4E7] bg-white text-[11px] font-[500] hover:border-[#0A0A0B]/20 transition-colors">Deal Value</span>
+                <span className="px-3.5 py-1.5 rounded-full border border-[#E4E4E7] bg-white text-[11px] font-[500] hover:border-[#0A0A0B]/20 transition-colors">Inactivity</span>
               </div>
             </Reveal>
           </div>
@@ -462,7 +450,7 @@ export default function LandingPage() {
       {/* Problem — DARK */}
       <section className="relative z-10 border-y border-white/[0.06] bg-[#0A0A0B] text-white overflow-hidden">
         <div className="absolute inset-0 ambient-grid-dark opacity-30" />
-        <div className="relative mx-auto max-w-[1280px] px-6 lg:px-8 py-[88px]">
+        <div className="relative mx-auto max-w-[1360px] px-6 lg:px-[32px] py-[88px]">
           <div className="grid lg:grid-cols-[0.9fr_1.1fr] gap-[48px] lg:gap-[80px] items-center">
             <Reveal>
               <div>
@@ -516,7 +504,7 @@ export default function LandingPage() {
       </section>
 
       {/* How it works — LIGHT */}
-      <section id="how-it-works" className="relative z-10 mx-auto max-w-[1280px] px-6 lg:px-8 py-[88px]">
+      <section id="how-it-works" className="relative z-10 mx-auto max-w-[1360px] px-6 lg:px-[32px] py-[88px]">
         <Reveal>
           <div className="mx-auto max-w-[640px] text-center">
             <div className="inline-flex items-center rounded-full border border-[#0A0A0B]/10 bg-white px-3.5 py-1 text-[11px] font-[700] tracking-[0.06em] text-[#52525B] shadow-sm">HOW ONVYRA WORKS • DATA → REVENUE</div>
@@ -563,7 +551,7 @@ export default function LandingPage() {
           <div className="absolute inset-0 ambient-grid-dark opacity-30" />
           <div className="absolute top-0 left-1/2 -translate-x-1/2 h-[700px] w-[900px] bg-[radial-gradient(50%_50%_at_50%_0%,rgba(255,255,255,0.06)_0%,transparent_70%)]" />
         </div>
-        <div className="relative mx-auto max-w-[1280px] px-6 lg:px-8 py-[88px]">
+        <div className="relative mx-auto max-w-[1360px] px-6 lg:px-[32px] py-[88px]">
           <div className="grid lg:grid-cols-2 gap-[64px] items-center">
             <Reveal>
               <div>
@@ -645,7 +633,7 @@ export default function LandingPage() {
       {/* Estimated vs Confirmed — DARK */}
       <section className="relative z-10 border-y border-white/[0.06] bg-[#0A0A0B] text-white overflow-hidden">
         <div className="absolute inset-0 ambient-grid-dark opacity-20" />
-        <div className="relative mx-auto max-w-[1280px] px-6 lg:px-8 py-[88px]">
+        <div className="relative mx-auto max-w-[1360px] px-6 lg:px-[32px] py-[88px]">
           <Reveal>
             <div className="mx-auto max-w-[720px] text-center">
               <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3.5 py-1.5">
@@ -698,7 +686,7 @@ export default function LandingPage() {
       {/* Security — DARK */}
       <section className="relative z-10 border-b border-white/[0.06] bg-[#0A0A0B] text-white overflow-hidden">
         <div className="absolute inset-0 ambient-grid-dark opacity-20" />
-        <div className="relative mx-auto max-w-[1280px] px-6 lg:px-8 py-[88px]">
+        <div className="relative mx-auto max-w-[1360px] px-6 lg:px-[32px] py-[88px]">
           <div className="grid lg:grid-cols-[1fr_1.1fr] gap-[64px] items-start">
             <Reveal>
               <div>
@@ -761,7 +749,7 @@ export default function LandingPage() {
 
       {/* Pricing — LIGHT premium */}
       <section className="relative z-10 bg-[#F9FAFB] border-b border-[#0A0A0B]/[0.06]">
-        <div className="mx-auto max-w-[1280px] px-6 lg:px-8 py-[88px]">
+        <div className="mx-auto max-w-[1360px] px-6 lg:px-[32px] py-[88px]">
           <Reveal>
             <div className="mx-auto max-w-[640px] text-center">
               <div className="inline-flex items-center rounded-full border border-[#0A0A0B]/10 bg-white px-3.5 py-1 text-[11px] font-[700] tracking-[0.06em] text-[#52525B] shadow-sm">PRICING • HONEST LIMITS • SERVER-ENFORCED</div>
@@ -816,7 +804,7 @@ export default function LandingPage() {
       </section>
 
       {/* FAQ — LIGHT */}
-      <section className="relative z-10 mx-auto max-w-[800px] px-6 lg:px-8 py-[88px]">
+      <section className="relative z-10 mx-auto max-w-[800px] px-6 lg:px-[32px] py-[88px]">
         <Reveal>
           <div className="inline-flex items-center gap-2 rounded-full border border-[#0A0A0B]/10 bg-white px-3.5 py-1 shadow-sm">
             <span className="h-1.5 w-1.5 rounded-full bg-[#0A0A0B]" />
@@ -858,7 +846,7 @@ export default function LandingPage() {
           <div className="absolute top-0 left-1/2 -translate-x-1/2 h-[700px] w-[1200px] bg-[radial-gradient(60%_60%_at_50%_0%,rgba(255,255,255,0.05)_0%,transparent_70%)]" />
           <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
         </div>
-        <div className="relative mx-auto max-w-[1280px] px-6 lg:px-8 py-[96px] text-center">
+        <div className="relative mx-auto max-w-[1360px] px-6 lg:px-[32px] py-[96px] text-center">
           <Reveal>
             <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3.5 py-1.5 mb-8">
               <span className="h-1.5 w-1.5 rounded-full bg-[#10B981] animate-[pulse-subtle_2s_ease-in-out_infinite]" />
@@ -878,7 +866,7 @@ export default function LandingPage() {
       </section>
 
       <footer className="relative z-10 border-t border-[#0A0A0B]/[0.06] bg-[#FCFCFD] py-10">
-        <div className="mx-auto max-w-[1280px] px-6 lg:px-8 flex flex-col md:flex-row justify-between gap-6 items-center text-[12px]">
+        <div className="mx-auto max-w-[1360px] px-6 lg:px-[32px] flex flex-col md:flex-row justify-between gap-6 items-center text-[12px]">
           <div className="flex items-center gap-3">
             <div className="h-7 w-7 rounded-[9px] bg-[#0A0A0B] flex items-center justify-center text-white font-[800] text-[12px] shadow-sm">O</div>
             <div>
