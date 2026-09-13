@@ -19,6 +19,19 @@ function getPrismaClient(): any {
   
   const dbUrl = process.env.DATABASE_URL || "";
   const isPostgres = dbUrl.startsWith("postgresql://") || dbUrl.startsWith("postgres://");
+  const isProduction = process.env.NODE_ENV === "production";
+  const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
+  
+  // Production must use PostgreSQL, never silently fall back - but allow build phase to succeed for CI
+  // Build phase check: Next.js sets NEXT_PHASE=phase-production-build during `next build`
+  // We allow fallback during build with warning, but runtime will throw
+  if (isProduction && !isPostgres && !isBuildPhase) {
+    throw new Error(
+      "PRODUCTION_DATABASE_REQUIRED: DATABASE_URL must be PostgreSQL in production. " +
+      "Set DATABASE_URL=postgresql://... . SQLite fallback is only allowed in development. " +
+      "During build, this is allowed but runtime will fail."
+    );
+  }
   
   if (isPostgres) {
     try {
@@ -29,14 +42,24 @@ function getPrismaClient(): any {
         log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
       });
       usingFallback = false;
-      console.log("[prisma] Using real PostgreSQL client");
+      if (!isProduction) {
+        console.log("[prisma] Using real PostgreSQL client");
+      }
       return prismaClient;
     } catch (e) {
+      if (isProduction && !isBuildPhase) {
+        // In production runtime, fail loudly, never fallback
+        throw new Error(`Failed to initialize PostgreSQL client in production: ${(e as Error).message}`);
+      }
       console.warn("[prisma] Failed to init real client, using fallback:", (e as Error).message);
       usingFallback = true;
     }
   } else {
     usingFallback = true;
+    if (isProduction && !isBuildPhase) {
+      // During build, allow fallback with warning, but runtime check above will throw
+      console.warn("[prisma] WARNING: Using SQLite fallback in production build. Runtime will require PostgreSQL.");
+    }
   }
   
   prismaClient = fallback;

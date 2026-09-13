@@ -81,8 +81,8 @@ export type CheckoutSessionParams = {
 };
 
 export function getStripePriceId(plan: "PRO" | "BUSINESS"): string | null {
-  if (plan === "PRO") return process.env.STRIPE_PRO_PRICE_ID || null;
-  if (plan === "BUSINESS") return process.env.STRIPE_BUSINESS_PRICE_ID || null;
+  if (plan === "PRO") return process.env.STRIPE_PRO_PRICE_ID || process.env.STRIPE_PRICE_ID_PRO || null;
+  if (plan === "BUSINESS") return process.env.STRIPE_BUSINESS_PRICE_ID || process.env.STRIPE_PRICE_ID_BUSINESS || null;
   return null;
 }
 

@@ -2,7 +2,8 @@ import { z } from "zod";
 
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
-  JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters"),
+  JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters").optional(),
+  AUTH_SECRET: z.string().min(32).optional(),
   JWT_EXPIRES_IN: z.string().default("7d"),
   BCRYPT_ROUNDS: z.coerce.number().int().min(10).max(15).default(12),
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
@@ -22,6 +23,8 @@ const envSchema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PRO_PRICE_ID: z.string().optional(),
   STRIPE_BUSINESS_PRICE_ID: z.string().optional(),
+  STRIPE_PRICE_ID_PRO: z.string().optional(),
+  STRIPE_PRICE_ID_BUSINESS: z.string().optional(),
   UPSTASH_REDIS_REST_URL: z.string().optional(),
   UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
@@ -38,18 +41,36 @@ let cachedEnv: Env | null = null;
 export function validateEnv(): Env {
   if (cachedEnv) return cachedEnv;
   
+  // Support AUTH_SECRET alias for JWT_SECRET
+  if (!process.env.JWT_SECRET && process.env.AUTH_SECRET) {
+    process.env.JWT_SECRET = process.env.AUTH_SECRET;
+  }
+  
+  // Production requires either JWT_SECRET or AUTH_SECRET
+  if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET && !process.env.AUTH_SECRET) {
+    throw new Error("Environment validation failed:\nJWT_SECRET or AUTH_SECRET: Required in production (min 32 chars)");
+  }
+  
   const parsed = envSchema.safeParse(process.env);
   
   if (!parsed.success) {
     const errors = parsed.error.errors.map(e => `${e.path.join(".")}: ${e.message}`).join("\n");
     if (process.env.NODE_ENV === "production") {
-      throw new Error(`Environment validation failed:\n${errors}`);
+      // If only JWT_SECRET missing but AUTH_SECRET present, allow
+      const hasAuthSecret = !!process.env.AUTH_SECRET;
+      const onlyJwtMissing = parsed.error.errors.length === 1 && parsed.error.errors[0].path[0] === "JWT_SECRET" && hasAuthSecret;
+      if (onlyJwtMissing) {
+        // Will be handled by fallback below
+      } else {
+        throw new Error(`Environment validation failed:\n${errors}`);
+      }
     } else {
       console.warn(`[env] Validation warnings:\n${errors}`);
       // In dev, return with defaults where possible
       cachedEnv = {
         DATABASE_URL: process.env.DATABASE_URL || "file:./dev.db",
-        JWT_SECRET: process.env.JWT_SECRET || "onvyra-dev-secret-change-in-prod-32chars-min",
+        JWT_SECRET: process.env.JWT_SECRET || process.env.AUTH_SECRET || "onvyra-dev-secret-change-in-prod-32chars-min",
+        AUTH_SECRET: process.env.AUTH_SECRET,
         JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "7d",
         BCRYPT_ROUNDS: 12,
         NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
@@ -67,8 +88,10 @@ export function validateEnv(): Env {
         STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
         STRIPE_PUBLISHABLE_KEY: process.env.STRIPE_PUBLISHABLE_KEY,
         STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
-        STRIPE_PRO_PRICE_ID: process.env.STRIPE_PRO_PRICE_ID,
-        STRIPE_BUSINESS_PRICE_ID: process.env.STRIPE_BUSINESS_PRICE_ID,
+        STRIPE_PRO_PRICE_ID: process.env.STRIPE_PRO_PRICE_ID || process.env.STRIPE_PRICE_ID_PRO,
+        STRIPE_BUSINESS_PRICE_ID: process.env.STRIPE_BUSINESS_PRICE_ID || process.env.STRIPE_PRICE_ID_BUSINESS,
+        STRIPE_PRICE_ID_PRO: process.env.STRIPE_PRICE_ID_PRO || process.env.STRIPE_PRO_PRICE_ID,
+        STRIPE_PRICE_ID_BUSINESS: process.env.STRIPE_PRICE_ID_BUSINESS || process.env.STRIPE_BUSINESS_PRICE_ID,
         UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
         UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
         LOG_LEVEL: (process.env.LOG_LEVEL as any) || "info",

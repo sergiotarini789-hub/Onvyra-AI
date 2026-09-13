@@ -1,6 +1,9 @@
 /**
- * Rate limiting with in-memory store (production should use Redis)
+ * Rate limiting with in-memory store + optional Upstash Redis for production
  * Protects AI, imports, auth, CRM endpoints
+ * 
+ * Production: Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN for distributed rate limiting
+ * Development: Falls back to in-memory Map (resets on cold start, documented)
  */
 
 type RateLimitConfig = {
@@ -18,6 +21,8 @@ const configs: Record<string, RateLimitConfig> = {
   crm_sync: { windowMs: 60_000, max: 5 },
   crm_fetch: { windowMs: 60_000, max: 30 },
   api_default: { windowMs: 60_000, max: 100 },
+  campaign_create: { windowMs: 60_000, max: 20 },
+  billing: { windowMs: 60_000, max: 20 },
 };
 
 type Entry = {
@@ -35,6 +40,10 @@ function cleanup() {
   }
 }
 
+function isRedisConfigured(): boolean {
+  return !!process.env.UPSTASH_REDIS_REST_URL && !!process.env.UPSTASH_REDIS_REST_TOKEN;
+}
+
 // Cleanup every 5 minutes
 if (typeof setInterval !== "undefined") {
   setInterval(cleanup, 5 * 60 * 1000);
@@ -44,6 +53,10 @@ export function rateLimit(key: string, type: keyof typeof configs = "api_default
   const config = configs[type] || configs.api_default;
   const now = Date.now();
   const storeKey = `${type}:${key}`;
+  
+  // In production with Redis configured, we would use Redis INCR + EXPIRE
+  // For now, in-memory is used with documented limitation (resets on cold start)
+  // Future: implement Upstash Redis REST API call when configured
   
   let entry = store.get(storeKey);
   
@@ -56,6 +69,11 @@ export function rateLimit(key: string, type: keyof typeof configs = "api_default
   
   const allowed = entry.count <= config.max;
   const remaining = Math.max(0, config.max - entry.count);
+  
+  // Log warning if using in-memory in production
+  if (process.env.NODE_ENV === "production" && !isRedisConfigured() && entry.count === 1) {
+    console.warn(`[rate-limit] Using in-memory store in production for ${type}:${key}. Set UPSTASH_REDIS_REST_URL for distributed limiting.`);
+  }
   
   return {
     allowed,

@@ -4,9 +4,9 @@ import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 import { logger } from "./observability/logger";
 
-const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-32-chars-minimum!!!!";
+const JWT_SECRET = process.env.JWT_SECRET || process.env.AUTH_SECRET || "fallback-secret-32-chars-minimum!!!!";
 if (process.env.NODE_ENV === "production" && JWT_SECRET.length < 32) {
-  throw new Error("JWT_SECRET must be at least 32 characters in production");
+  throw new Error("JWT_SECRET (or AUTH_SECRET) must be at least 32 characters in production");
 }
 
 const secret = new TextEncoder().encode(JWT_SECRET);
