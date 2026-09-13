@@ -161,15 +161,15 @@ export default function LandingPage() {
                 </div>
               </div>
 
-              {/* Recovery Intelligence Flow — Intelligent Animated System */}
+              {/* Recovery Intelligence Flow — Real System Operating — Calm Deterministic */}
               <div className={`mt-14 transition-all duration-[800ms] ease-[cubic-bezier(0.16,1,0.3,1)] delay-[400ms] ${heroVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
-                <div className="rounded-[16px] border border-white/[0.08] bg-white/[0.04] p-1 backdrop-blur">
-                  <div className="rounded-[12px] bg-[#111113] border border-white/[0.06] p-[20px]">
+                <div className="rounded-[16px] border border-white/[0.07] bg-white/[0.03] p-1 backdrop-blur-[12px]">
+                  <div className="rounded-[12px] bg-[#111113] border border-white/[0.05] p-[20px]">
                     <div className="flex items-center justify-between">
-                      <div className="text-[10px] font-[800] tracking-[0.08em] text-white/40">RECOVERY INTELLIGENCE FLOW • DETERMINISTIC</div>
+                      <div className="text-[10px] font-[700] tracking-[0.08em] text-white/35">RECOVERY INTELLIGENCE FLOW • DETERMINISTIC • NO FAKE PROGRESS</div>
                       <div className="flex items-center gap-2">
-                        <div className={`h-1.5 w-1.5 rounded-full ${scanComplete ? "bg-[#10B981]" : "bg-[#10B981] animate-[pulse-subtle_1.5s_ease-in-out_infinite]"}`} />
-                        <span className={`text-[10px] font-[800] tracking-[0.05em] ${scanComplete ? "text-[#10B981]" : "text-[#10B981]"}`}>{scanComplete ? "COMPLETE" : "PROCESSING"}</span>
+                        <div className={`h-1.5 w-1.5 rounded-full ${scanComplete ? "bg-[#10B981]" : "bg-[#F59E0B]"}`} />
+                        <span className={`text-[10px] font-[700] tracking-[0.06em] ${scanComplete ? "text-[#10B981]" : "text-white/50"}`}>{scanComplete ? "COMPLETE • 43 DETECTED" : `ANALYZING • ${scanning}%`}</span>
                       </div>
                     </div>
 
@@ -177,22 +177,22 @@ export default function LandingPage() {
                       {[
                         { label: "CRM DATA", value: "1,284", threshold: 10 },
                         { label: "AI ANALYZING", value: scanComplete ? "100%" : `${scanning}%`, threshold: 20 },
-                        { label: "LEADS", value: "1,284", threshold: 45 },
+                        { label: "INTENT", value: "CHECKED", threshold: 45 },
                         { label: "OPPORTUNITIES", value: "43", threshold: 70 },
-                        { label: "PRIORITY ENGINE", value: "RANKED", threshold: 85 },
+                        { label: "PRIORITY", value: "RANKED", threshold: 85 },
                         { label: "RECOVERABLE", value: "₽2.8M", threshold: 95 },
                       ].map((step, i) => {
                         const active = scanning > step.threshold || scanComplete;
                         return (
                           <div key={i} className="relative">
-                            <div className={`rounded-[10px] border p-2.5 transition-all duration-500 ${active ? "bg-white text-[#0A0A0B] border-white shadow-[0_4px_16px_rgba(255,255,255,0.15)]" : "bg-white/[0.04] border-white/[0.06] text-white/30"}`}>
-                              <div className="text-[9px] font-[800] tracking-[0.06em] leading-none">{step.label}</div>
-                              <div className="mt-1.5 font-mono-financial text-[13px] font-[750] tracking-[-0.02em] leading-none">{step.value}</div>
+                            <div className={`rounded-[10px] border p-2.5 transition-all duration-500 ${active ? "bg-white text-[#0A0A0B] border-white shadow-[0_2px_12px_rgba(255,255,255,0.12)]" : "bg-white/[0.03] border-white/[0.05] text-white/25"}`}>
+                              <div className="text-[9px] font-[700] tracking-[0.07em] leading-none opacity-80">{step.label}</div>
+                              <div className="mt-1.5 font-mono-financial text-[12.5px] font-[750] tracking-[-0.02em] leading-none">{step.value}</div>
                             </div>
                             {i < 5 && (
                               <div className="absolute top-1/2 -right-1 z-10 flex items-center">
-                                <div className={`h-px w-2 transition-colors duration-500 ${scanning > (i + 1) * 16 || scanComplete ? "bg-white" : "bg-white/10"}`} />
-                                <div className={`h-1 w-1 rounded-full -ml-px transition-colors duration-500 ${scanning > (i + 1) * 16 || scanComplete ? "bg-white" : "bg-white/20"}`} />
+                                <div className={`h-px w-2 transition-colors duration-500 ${scanning > (i + 1) * 16 || scanComplete ? "bg-white/60" : "bg-white/[0.07]"}`} />
+                                <div className={`h-1 w-1 rounded-full -ml-px transition-colors duration-500 ${scanning > (i + 1) * 16 || scanComplete ? "bg-white/60" : "bg-white/15"}`} />
                               </div>
                             )}
                           </div>
@@ -202,23 +202,21 @@ export default function LandingPage() {
 
                     <div className="mt-6 space-y-3">
                       <div className="flex justify-between text-[11px] items-center">
-                        <span className="text-white/50 font-[500] tracking-[0.01em]">Scanning CRM • Analyzing deal activity • Checking purchase intent • Detecting inactive</span>
-                        <span className="font-mono-financial font-[700] text-white tabular-nums">{scanning}%</span>
+                        <span className="text-white/40 font-[500] tracking-[0.01em]">CRM DATA → AI ANALYZING → PURCHASE INTENT → INACTIVE → PROBABILITY → PRIORITY → RECOVERABLE</span>
+                        <span className="font-mono-financial font-[650] text-white/70 tabular-nums text-[11px]">{scanning}%</span>
                       </div>
-                      <div className="h-[3px] w-full overflow-hidden rounded-full bg-white/[0.06]">
-                        <div className="h-full bg-white transition-all duration-100 ease-linear relative overflow-hidden rounded-full" style={{ width: `${scanning}%` }}>
-                          {!scanComplete && <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_1.2s_ease-in-out_infinite]" />}
-                        </div>
+                      <div className="h-[2px] w-full overflow-hidden rounded-full bg-white/[0.05]">
+                        <div className="h-full bg-white/80 transition-all duration-100 ease-linear rounded-full" style={{ width: `${scanning}%` }} />
                       </div>
-                      <div className="grid grid-cols-3 gap-2 pt-1 text-[10px] font-[550] tracking-[0.01em]">
-                        <span className={`flex items-center gap-1.5 transition-colors duration-300 ${scanning > 20 || scanComplete ? "text-[#10B981]" : "text-white/25"}`}><span className={`h-3.5 w-3.5 rounded-full flex items-center justify-center text-[9px] font-[700] ${scanning > 20 || scanComplete ? "bg-[#10B981] text-white" : "bg-white/10 text-white/30"}`}>{scanning > 20 || scanComplete ? "✓" : "○"}</span> Analyzing deal activity</span>
-                        <span className={`flex items-center gap-1.5 transition-colors duration-300 ${scanning > 50 || scanComplete ? "text-[#10B981]" : "text-white/25"}`}><span className={`h-3.5 w-3.5 rounded-full flex items-center justify-center text-[9px] font-[700] ${scanning > 50 || scanComplete ? "bg-[#10B981] text-white" : "bg-white/10 text-white/30"}`}>{scanning > 50 || scanComplete ? "✓" : "○"}</span> Checking purchase intent</span>
-                        <span className={`flex items-center gap-1.5 transition-colors duration-300 ${scanning > 75 || scanComplete ? "text-[#10B981]" : "text-white/25"}`}><span className={`h-3.5 w-3.5 rounded-full flex items-center justify-center text-[9px] font-[700] ${scanning > 75 || scanComplete ? "bg-[#10B981] text-white" : "bg-white/10 text-white/30"}`}>{scanning > 75 || scanComplete ? "✓" : "○"}</span> Ranking opportunities</span>
+                      <div className="grid grid-cols-3 gap-2 pt-1 text-[10px] font-[500] tracking-[0.01em]">
+                        <span className={`flex items-center gap-1.5 transition-colors duration-300 ${scanning > 20 || scanComplete ? "text-white/70" : "text-white/25"}`}><span className={`h-3.5 w-3.5 rounded-full flex items-center justify-center text-[9px] font-[700] border ${scanning > 20 || scanComplete ? "bg-white text-black border-white" : "bg-white/[0.04] border-white/10 text-white/30"}`}>{scanning > 20 || scanComplete ? "✓" : "○"}</span> Analyzing CRM</span>
+                        <span className={`flex items-center gap-1.5 transition-colors duration-300 ${scanning > 50 || scanComplete ? "text-white/70" : "text-white/25"}`}><span className={`h-3.5 w-3.5 rounded-full flex items-center justify-center text-[9px] font-[700] border ${scanning > 50 || scanComplete ? "bg-white text-black border-white" : "bg-white/[0.04] border-white/10 text-white/30"}`}>{scanning > 50 || scanComplete ? "✓" : "○"}</span> Checking intent</span>
+                        <span className={`flex items-center gap-1.5 transition-colors duration-300 ${scanning > 75 || scanComplete ? "text-white/70" : "text-white/25"}`}><span className={`h-3.5 w-3.5 rounded-full flex items-center justify-center text-[9px] font-[700] border ${scanning > 75 || scanComplete ? "bg-white text-black border-white" : "bg-white/[0.04] border-white/10 text-white/30"}`}>{scanning > 75 || scanComplete ? "✓" : "○"}</span> Ranking opps</span>
                       </div>
                       {scanComplete && (
-                        <div className="pt-2 flex items-center gap-2 text-[11px] font-[600] text-[#10B981] animate-[reveal_0.5s_ease]">
-                          <span className="h-5 w-5 rounded-full bg-[#10B981] text-white flex items-center justify-center text-[10px]">✓</span>
-                          43 opportunities detected • ₽2,840,000 estimated recoverable • Potential ≠ Confirmed
+                        <div className="pt-2 flex items-center gap-2 text-[11px] font-[550] tracking-[-0.01em] text-white/60">
+                          <span className="h-4 w-4 rounded-full bg-white text-black flex items-center justify-center text-[9px] font-[800]">✓</span>
+                          43 opportunities detected • ₽2,840,000 estimated • Potential ≠ Confirmed • Deterministic • No hallucination
                         </div>
                       )}
                     </div>
