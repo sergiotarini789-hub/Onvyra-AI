@@ -8,16 +8,13 @@ export default function BillingClient({ currentPlan, orgId, billingConfigured, s
   async function handleUpgrade(plan: "PRO" | "BUSINESS") {
     setLoading(plan);
     setError(null);
-    
     try {
       const res = await fetch("/api/billing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan }),
       });
-      
       const data = await res.json();
-      
       if (!res.ok) {
         if (data.notConfigured) {
           setError("Billing not configured. In production, this would redirect to Stripe Checkout. In dev, plan can be changed manually via API.");
@@ -26,7 +23,6 @@ export default function BillingClient({ currentPlan, orgId, billingConfigured, s
         setError(data.error || "Failed to create checkout session");
         return;
       }
-      
       if (data.checkoutUrl) {
         window.location.href = data.checkoutUrl;
       } else if (data.devMode) {
@@ -43,39 +39,16 @@ export default function BillingClient({ currentPlan, orgId, billingConfigured, s
 
   return (
     <>
-      {error && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-          {error}
-        </div>
-      )}
-      
+      {error && <div className="rounded-[12px] border border-[#FDE68A] bg-[#FFFBEB] p-3 text-[12px] text-[#92400E] font-[500]">{error}</div>}
       <div className="flex gap-2">
         {currentPlan === "FREE" && (
           <>
-            <button
-              onClick={() => handleUpgrade("PRO")}
-              disabled={!!loading}
-              className="text-sm px-4 py-2 rounded-lg bg-slate-900 text-white font-bold disabled:opacity-50"
-            >
-              {loading === "PRO" ? "Processing..." : "Upgrade to PRO - $49/mo"}
-            </button>
-            <button
-              onClick={() => handleUpgrade("BUSINESS")}
-              disabled={!!loading}
-              className="text-sm px-4 py-2 rounded-lg border bg-white font-bold disabled:opacity-50"
-            >
-              {loading === "BUSINESS" ? "Processing..." : "Upgrade to BUSINESS - $199/mo"}
-            </button>
+            <button onClick={() => handleUpgrade("PRO")} disabled={!!loading} className="h-[40px] px-5 rounded-[11px] bg-[#0A0A0B] text-white text-[13px] font-[700] shadow-sm hover:bg-[#1A1D23] disabled:opacity-50 hover:-translate-y-[0.5px] active:translate-y-0 active:scale-[0.98] transition-all">{loading === "PRO" ? "Processing..." : "Upgrade to PRO - $49/mo →"}</button>
+            <button onClick={() => handleUpgrade("BUSINESS")} disabled={!!loading} className="h-[40px] px-5 rounded-[11px] border border-[#E4E4E7] bg-white text-[13px] font-[600] shadow-sm hover:bg-[#F9FAFB] disabled:opacity-50 transition-colors">{loading === "BUSINESS" ? "Processing..." : "Upgrade to BUSINESS - $199/mo"}</button>
           </>
         )}
         {currentPlan === "PRO" && (
-          <button
-            onClick={() => handleUpgrade("BUSINESS")}
-            disabled={!!loading}
-            className="text-sm px-4 py-2 rounded-lg bg-slate-900 text-white font-bold disabled:opacity-50"
-          >
-            {loading === "BUSINESS" ? "Processing..." : "Upgrade to BUSINESS"}
-          </button>
+          <button onClick={() => handleUpgrade("BUSINESS")} disabled={!!loading} className="h-[40px] px-5 rounded-[11px] bg-[#0A0A0B] text-white text-[13px] font-[700] shadow-sm hover:bg-[#1A1D23] disabled:opacity-50 transition-all">{loading === "BUSINESS" ? "Processing..." : "Upgrade to BUSINESS →"}</button>
         )}
       </div>
     </>
